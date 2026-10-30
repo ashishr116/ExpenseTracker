@@ -44,23 +44,30 @@ struct AccountDetailView: View {
 
         List {
             Section {
-                LabeledContent(isInCredit ? "In Credit" : (hasFriends ? "Mine" : account.kind.balanceLabel)) {
-                    Text(isInCredit ? -balance : balance, format: .rupees)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(
-                            isInCredit ? Color.green
-                                : (account.kind.isLiability ? (balance > 0 ? Color.red : Color.primary) : (balance < 0 ? Color.red : Color.primary))
-                        )
-                }
                 if hasFriends {
+                    // The total comes first, matching the card's row in the list. Below it, the two parts.
+                    LabeledContent("Total on Card") {
+                        Text(balance + lent, format: .rupees)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(balance + lent > 0 ? Color.red : Color.primary)
+                    }
+                    LabeledContent("Mine") {
+                        Text(balance, format: .rupees)
+                            .fontWeight(.semibold)
+                    }
                     LabeledContent("Lent to Friends") {
                         Text(lent, format: .rupees)
                             .fontWeight(.semibold)
                             .foregroundStyle(.orange)
                     }
-                    LabeledContent("Total on Card") {
-                        Text(balance + lent, format: .rupees)
-                            .fontWeight(.semibold)
+                } else {
+                    LabeledContent(isInCredit ? "In Credit" : account.kind.balanceLabel) {
+                        Text(isInCredit ? -balance : balance, format: .rupees)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(
+                                isInCredit ? Color.green
+                                    : (account.kind.isLiability ? (balance > 0 ? Color.red : Color.primary) : (balance < 0 ? Color.red : Color.primary))
+                            )
                     }
                 }
                 LabeledContent("Opening \(account.kind.balanceLabel)") {

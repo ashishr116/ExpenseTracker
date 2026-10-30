@@ -153,10 +153,15 @@ struct AccountsView: View {
 private struct AccountRow: View {
     let account: Account
     let balance: Decimal
-    /// For a credit card: what friends still owe on it. Shown small, and not part of the amount you owe.
+    /// For a credit card: what friends still owe on it. The row shows it added to your own amount, as the
+    /// card's total. Open the card to see the two apart.
     var lent: Decimal = 0
 
     var body: some View {
+        // What the bank's statement shows: your part plus your friends'.
+        let hasFriends = account.kind.isLiability && lent > 0
+        let balance = hasFriends ? self.balance + lent : self.balance
+
         HStack(spacing: 12) {
             Image(systemName: account.kind.systemImage)
                 .font(.title3)
@@ -192,15 +197,10 @@ private struct AccountRow: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(account.kind.isLiability ? (balance > 0 ? Color.red : Color.primary) : (balance < 0 ? Color.red : Color.primary))
                     if account.kind.isLiability {
-                        Text("owed")
+                        Text(hasFriends ? "on card" : "owed")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                }
-                if account.kind.isLiability, lent > 0 {
-                    Text("+\(lent.formatted(.rupees.precision(.fractionLength(0)))) friends")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
                 }
             }
         }
