@@ -30,7 +30,7 @@ SwiftData records saved on the device. Money is stored as whole paise and read b
 `Holding` and `HoldingKind`: an investment, savings balance or debt entered by hand for net worth.
 
 ## `PaymentCard.swift`
-`PaymentCard`: a saved card with optional full number, expiry and CVV, shown only after Face ID.
+`PaymentCard`: a saved card with optional full number, expiry and CVV, shown only after Face ID. The full details are stored in the Keychain (see `CardVault`), and the database holds only the last four digits and an id that points to them. Cards saved by earlier versions are moved to the Keychain on the next launch.
 
 ## `MonthlySavings.swift`
 - `MonthlySavings`: one record per finished month, noting the leftover and how much was moved to savings.

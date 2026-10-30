@@ -63,7 +63,7 @@ File-by-file notes:
 
 - All data stays on the device. Backups go only where you save them.
 - Only the last four digits of a card are used for matching entries. The full number, expiry and CVV are kept only for the Saved Cards screen, shown after Face ID, and are never written to a backup or CSV file.
-- Card details are currently stored unencrypted in the app's database. Moving them to the Keychain would be a sensible next step.
+- The full number, expiry and CVV are kept in the iPhone's Keychain, not in the app's database. They are available only while the phone is unlocked and only on this phone, so they are not copied to a new phone. Re-enter them there if needed.
 
 ## Known limits
 

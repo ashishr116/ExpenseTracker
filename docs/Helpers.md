@@ -29,6 +29,9 @@ Remembers your monthly salary, day and bank, and adds it to income each month, u
 ## `DataMigrations.swift`
 One-off upgrades for data saved by earlier versions. Safe to run on every launch.
 
+## `CardVault.swift`
+Stores each card's full number, expiry and CVV in the iPhone's Keychain, available only while the phone is unlocked and only on this phone. Also removes the items of cards that were deleted.
+
 ## `BiometricAuth.swift`
 Face ID check, falling back to the device passcode.
 

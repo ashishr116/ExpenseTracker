@@ -14,7 +14,17 @@ enum DataMigrations {
         migrateRepaidLoans(in: context)
         EMI.migratePaidStateIfNeeded(in: context)
         InsurancePolicy.migratePaidStateIfNeeded(in: context)
+        moveCardSecretsToKeychain(in: context)
         try? context.save()
+    }
+
+    /// Moves full card details from the database into the Keychain, then removes Keychain items whose
+    /// card no longer exists. Cards that were already moved are left alone.
+    private static func moveCardSecretsToKeychain(in context: ModelContext) {
+        // If the cards can't be read, do nothing: tidying up from a failed read would delete every item.
+        guard let cards = try? context.fetch(FetchDescriptor<PaymentCard>()) else { return }
+        cards.forEach { $0.moveSecretsToKeychain() }
+        CardVault.purge(keeping: Set(cards.map(\.vaultID).filter { !$0.isEmpty }))
     }
 
     /// A loan marked repaid before part payments existed gets one repayment for its full amount,

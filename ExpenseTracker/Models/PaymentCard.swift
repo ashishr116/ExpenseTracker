@@ -7,13 +7,20 @@ import Foundation
 import SwiftData
 
 /// A saved credit or debit card with optional full card details (number, expiry, CVV).
+///
+/// The full details live in the Keychain (see `CardVault`), not in the database. These three database fields
+/// are what earlier versions used, and are emptied once the details have been moved.
 @Model
 final class PaymentCard {
     var bankName: String
     var cardLastFour: String
-    var cardNumber: String = ""
-    var expiryDate: String = ""
-    var cvv: String = ""
+    @Attribute(originalName: "cardNumber") private var legacyCardNumber: String = ""
+    @Attribute(originalName: "expiryDate") private var legacyExpiryDate: String = ""
+    @Attribute(originalName: "cvv") private var legacyCVV: String = ""
+    /// Names this card's item in the Keychain. Empty until the card has details to keep.
+    private var secretID: String = ""
+    /// Changes whenever the details change, so screens showing them redraw.
+    private var secretsRevision: Int = 0
     var cardholderName: String = ""
     var accountTypeRaw: String
     var nickname: String
@@ -36,14 +43,61 @@ final class PaymentCard {
         let cleanDigits = cardNumber.filter(\.isNumber)
         let lastFour = !cardLastFour.isEmpty ? cardLastFour : String(cleanDigits.suffix(4))
         self.cardLastFour = lastFour
-        self.cardNumber = cleanDigits
-        self.expiryDate = expiryDate
-        self.cvv = cvv
         self.cardholderName = cardholderName
         self.accountTypeRaw = accountType.rawValue
         self.nickname = nickname
         self.createdAt = createdAt
+        self.secrets = CardVault.Secrets(number: cleanDigits, expiry: expiryDate, cvv: cvv)
     }
+
+    // MARK: Full details
+
+    /// The number, expiry and CVV, read from the Keychain. Before a card has been moved there, they come
+    /// from the old database fields.
+    private var secrets: CardVault.Secrets {
+        get {
+            if !secretID.isEmpty, let saved = CardVault.load(secretID) { return saved }
+            return CardVault.Secrets(number: legacyCardNumber, expiry: legacyExpiryDate, cvv: legacyCVV)
+        }
+        set {
+            if secretID.isEmpty { secretID = UUID().uuidString }
+            if CardVault.save(newValue, for: secretID) {
+                legacyCardNumber = ""
+                legacyExpiryDate = ""
+                legacyCVV = ""
+            } else {
+                // The Keychain refused, so keep the details rather than lose them. They move on the next launch.
+                legacyCardNumber = newValue.number
+                legacyExpiryDate = newValue.expiry
+                legacyCVV = newValue.cvv
+            }
+            secretsRevision += 1
+        }
+    }
+
+    var cardNumber: String {
+        get { secrets.number }
+        set { secrets.number = newValue }
+    }
+
+    var expiryDate: String {
+        get { secrets.expiry }
+        set { secrets.expiry = newValue }
+    }
+
+    var cvv: String {
+        get { secrets.cvv }
+        set { secrets.cvv = newValue }
+    }
+
+    /// Moves details still held in the database into the Keychain, and clears them from the database.
+    func moveSecretsToKeychain() {
+        guard !legacyCardNumber.isEmpty || !legacyExpiryDate.isEmpty || !legacyCVV.isEmpty else { return }
+        secrets = CardVault.Secrets(number: legacyCardNumber, expiry: legacyExpiryDate, cvv: legacyCVV)
+    }
+
+    /// The Keychain id of this card, used to tidy up items of deleted cards.
+    var vaultID: String { secretID }
 
     var accountType: AccountType {
         get { AccountType(rawValue: accountTypeRaw) ?? .creditCard }
