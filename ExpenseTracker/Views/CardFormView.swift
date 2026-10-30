@@ -1,0 +1,214 @@
+//
+//  CardFormView.swift
+//  ExpenseTracker
+//
+
+import SwiftUI
+import SwiftData
+
+/// Sheet for adding a new credit/debit card with full details (number, expiry, CVV) or editing an existing one.
+struct CardFormView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    let card: PaymentCard?
+
+    @State private var bankName: String
+    @State private var cardNumberInput: String
+    @State private var expiryInput: String
+    @State private var cvvInput: String
+    @State private var cardholderName: String
+    @State private var accountType: AccountType
+    @State private var nickname: String
+    @State private var isCVVVisible = false
+
+    init(card: PaymentCard? = nil) {
+        self.card = card
+        _bankName = State(initialValue: card?.bankName ?? "")
+        _cardNumberInput = State(initialValue: card?.formattedFullNumber ?? "")
+        _expiryInput = State(initialValue: card?.expiryDate ?? "")
+        _cvvInput = State(initialValue: card?.cvv ?? "")
+        _cardholderName = State(initialValue: card?.cardholderName ?? "")
+        _accountType = State(initialValue: card?.accountType ?? .creditCard)
+        _nickname = State(initialValue: card?.nickname ?? "")
+    }
+
+    private var trimmedBank: String {
+        bankName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isValid: Bool {
+        !trimmedBank.isEmpty || !cardNumberInput.filter(\.isNumber).isEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Card Details") {
+                    Picker("Card Type", selection: $accountType) {
+                        ForEach(AccountType.allCases.filter(\.usesCard)) { type in
+                            Label(type.rawValue, systemImage: type.systemImage)
+                                .tag(type)
+                        }
+                    }
+
+                    TextField("Bank Name (e.g. HDFC Bank)", text: $bankName)
+                        .textInputAutocapitalization(.words)
+
+                    bankSuggestionChips
+
+                    TextField("Card Number (16 digits)", text: $cardNumberInput)
+                        .keyboardType(.numberPad)
+                        .onChange(of: cardNumberInput) { _, newValue in
+                            let formatted = formatCardNumberInput(newValue)
+                            if formatted != newValue {
+                                cardNumberInput = formatted
+                            }
+                        }
+
+                    HStack(spacing: 16) {
+                        TextField("Expiry (MM/YY)", text: $expiryInput)
+                            .keyboardType(.numberPad)
+                            .onChange(of: expiryInput) { _, newValue in
+                                let formatted = formatExpiryInput(newValue)
+                                if formatted != newValue {
+                                    expiryInput = formatted
+                                }
+                            }
+
+                        HStack {
+                            if isCVVVisible {
+                                TextField("CVV", text: $cvvInput)
+                                    .keyboardType(.numberPad)
+                            } else {
+                                SecureField("CVV", text: $cvvInput)
+                                    .keyboardType(.numberPad)
+                            }
+
+                            Button {
+                                isCVVVisible.toggle()
+                            } label: {
+                                Image(systemName: isCVVVisible ? "eye.slash" : "eye")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                        .onChange(of: cvvInput) { _, newValue in
+                            let digits = String(newValue.filter(\.isNumber).prefix(4))
+                            if digits != newValue { cvvInput = digits }
+                        }
+                    }
+
+                    TextField("Cardholder Name (optional)", text: $cardholderName)
+                        .textInputAutocapitalization(.words)
+
+                    TextField("Nickname (optional, e.g. Regalia Gold)", text: $nickname)
+                        .textInputAutocapitalization(.words)
+                }
+
+                if let card {
+                    Section {
+                        Button("Delete Card", role: .destructive) {
+                            modelContext.delete(card)
+                            dismiss()
+                        }
+                    }
+                }
+            }
+            .navigationTitle(card == nil ? "Add Card" : "Edit Card")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", action: save)
+                        .disabled(!isValid)
+                }
+            }
+        }
+    }
+
+    private var bankSuggestionChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(PopularBank.names, id: \.self) { bank in
+                    let isSelected = bankName.caseInsensitiveCompare(bank) == .orderedSame
+                    Button {
+                        bankName = bank
+                    } label: {
+                        Text(bank)
+                            .font(.caption)
+                            .fontWeight(isSelected ? .semibold : .regular)
+                            .foregroundStyle(isSelected ? .white : .primary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(isSelected ? Color.accentColor : Color(.secondarySystemFill), in: .capsule)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private func formatCardNumberInput(_ input: String) -> String {
+        let digits = String(input.filter(\.isNumber).prefix(16))
+        var formatted = ""
+        for (index, char) in digits.enumerated() {
+            if index > 0 && index % 4 == 0 {
+                formatted.append(" ")
+            }
+            formatted.append(char)
+        }
+        return formatted
+    }
+
+    private func formatExpiryInput(_ input: String) -> String {
+        let digits = String(input.filter(\.isNumber).prefix(4))
+        if digits.count >= 3 {
+            let month = digits.prefix(2)
+            let year = digits.suffix(digits.count - 2)
+            return "\(month)/\(year)"
+        }
+        return digits
+    }
+
+    private func save() {
+        let cleanDigits = cardNumberInput.filter(\.isNumber)
+        let lastFour = String(cleanDigits.suffix(4))
+        let trimmedNickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCardholder = cardholderName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedExpiry = expiryInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanCVV = String(cvvInput.filter(\.isNumber).prefix(4))
+
+        if let card {
+            card.bankName = trimmedBank
+            card.cardNumber = cleanDigits
+            card.cardLastFour = lastFour
+            card.expiryDate = trimmedExpiry
+            card.cvv = cleanCVV
+            card.cardholderName = trimmedCardholder
+            card.accountType = accountType
+            card.nickname = trimmedNickname
+        } else {
+            let newCard = PaymentCard(
+                bankName: trimmedBank,
+                cardLastFour: lastFour,
+                cardNumber: cleanDigits,
+                expiryDate: trimmedExpiry,
+                cvv: cleanCVV,
+                cardholderName: trimmedCardholder,
+                accountType: accountType,
+                nickname: trimmedNickname
+            )
+            modelContext.insert(newCard)
+        }
+        dismiss()
+    }
+}
+
+#Preview {
+    CardFormView()
+        .modelContainer(for: PaymentCard.self, inMemory: true)
+}

@@ -1,0 +1,42 @@
+# Helpers (backend logic)
+
+Code with no screen of its own.
+
+## `AccountLedger.swift`
+Works out each account's balance from the entries. Spending lowers a bank or cash account and raises what a card owes. Income, cash loans, repayments and transfers move balances. Finds entries that match no account. Also tracks what friends owe on each credit card, kept apart from your own balance.
+
+## `PaymentReminder.swift`
+Schedules local notifications for EMIs and premiums: the day before, on the due date, and again after it is overdue. Also schedules the repeating monthly reminder for a friend's card or personal-loan EMI.
+
+## `NotificationDelegate.swift`
+Lets reminders appear as a banner while the app is open. Without it iOS drops them.
+
+## `LoanReminder.swift`
+Builds the reminder message for a friend: the full amount for ordinary loans, or just the EMI for instalment loans. Also builds the WhatsApp link for sending it.
+
+## `BackupManager.swift`
+Saves everything to one JSON file and restores it. Records that point at each other are linked by position. Full card numbers and CVV are never written.
+
+## `CSVExporter.swift`
+Writes each list to its own CSV file for spreadsheets, guarding against spreadsheet formulas. Also holds the share-sheet helper.
+
+## `CardSync.swift`
+Keeps Saved Cards in step with credit-card accounts, so a card added under Accounts can be chosen when adding an expense.
+
+## `SalaryPlan.swift`
+Remembers your monthly salary, day and bank, and adds it to income each month, unless you already entered that month's salary yourself.
+
+## `DataMigrations.swift`
+One-off upgrades for data saved by earlier versions. Safe to run on every launch.
+
+## `BiometricAuth.swift`
+Face ID check, falling back to the device passcode.
+
+## `ContactPickerPresenter.swift`
+Shows the system contact picker directly through UIKit, so choosing a contact does not close the form underneath. Needs no Contacts permission.
+
+## `Formatting.swift`
+Money helpers: converting between rupees and paise, the rupee display format, and date text for file names.
+
+## `Brand.swift`
+Brand colours and the list of popular banks used for one-tap selection.

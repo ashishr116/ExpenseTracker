@@ -2,60 +2,118 @@
 //  ContentView.swift
 //  ExpenseTracker
 //
-//  Created by Ashish on 29/10/26.
-//
 
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @State private var selectedDay = Date.now
+    @State private var selectedMonth = Date.now
+    @State private var selectedBudgetMonth = Date.now
+
+    @Query private var emis: [EMI]
+    @Query private var policies: [InsurancePolicy]
+
+    /// EMIs and premiums that are due today or overdue, shown as a badge on the More tab.
+    private var attentionCount: Int {
+        emis.reduce(0) { $0 + $1.overdueInstallments().count + $1.dueTodayInstallments().count }
+            + policies.reduce(0) { $0 + $1.overduePremiums().count + $1.dueTodayPremiums().count }
+    }
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
+        TabView {
+            NavigationStack {
+                DailyView(selectedDate: $selectedDay)
+                    .navigationTitle("Today")
+                    .addEntryToolbar(defaultDate: selectedDay)
             }
+            .tabItem {
+                Label("Daily", systemImage: "calendar.day.timeline.left")
+            }
+
+            NavigationStack {
+                MonthlyView(month: $selectedMonth)
+                    .navigationTitle("Monthly")
+                    .addEntryToolbar(defaultDate: selectedMonth)
+            }
+            .tabItem {
+                Label("Monthly", systemImage: "calendar")
+            }
+
+            NavigationStack {
+                BudgetView(month: $selectedBudgetMonth)
+                    .navigationTitle("Budget Plan")
+                    .addEntryToolbar(defaultDate: selectedBudgetMonth)
+            }
+            .tabItem {
+                Label("Budget", systemImage: "chart.pie")
+            }
+
+            NavigationStack {
+                MoreView()
+                    .navigationTitle("More")
+            }
+            .tabItem {
+                Label("More", systemImage: "ellipsis")
+            }
+            .badge(attentionCount)
+        }
+    }
+}
+
+// MARK: - Add Expense / Income / Loan toolbar
+
+/// Which add-entry sheet is currently presented from the + menu.
+private enum AddSheet: Identifiable {
+    case expense, income, loan
+
+    var id: Self { self }
+}
+
+/// Adds the "+" toolbar menu (Expense / Income / Loan) and its sheets to a tab's root view.
+private struct AddEntryToolbar: ViewModifier {
+    let defaultDate: Date
+    @State private var addSheet: AddSheet?
+
+    func body(content: Content) -> some View {
+        content
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                ToolbarItem(placement: .primaryAction) {
+                    // Icon-only "+" in the toolbar; tapping it shows the dropdown.
+                    Menu {
+                        Button("Expense", systemImage: "minus.circle") {
+                            addSheet = .expense
+                        }
+                        Button("Income", systemImage: "plus.circle") {
+                            addSheet = .income
+                        }
+                        Button("Loan", systemImage: "person.2") {
+                            addSheet = .loan
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                            .accessibilityLabel("Add")
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+            .sheet(item: $addSheet) { sheet in
+                switch sheet {
+                case .expense: ExpenseFormView(defaultDate: defaultDate)
+                case .income: IncomeFormView(defaultDate: defaultDate)
+                case .loan: LoanFormView(defaultDate: defaultDate)
+                }
             }
-        }
+    }
+}
+
+extension View {
+    /// Adds the "+" menu for adding an expense, income, or loan.
+    func addEntryToolbar(defaultDate: Date) -> some View {
+        modifier(AddEntryToolbar(defaultDate: defaultDate))
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: [Expense.self, Income.self, Loan.self, EMI.self, Holding.self, InsurancePolicy.self], inMemory: true)
 }
