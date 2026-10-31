@@ -58,6 +58,10 @@ struct LoanFormView: View {
     /// Phone numbers of the chosen contact, when there is more than one to pick from.
     @State private var phoneChoices: [CNLabeledValue<CNPhoneNumber>] = []
     @State private var isChoosingPhone = false
+    /// A credit card saved for the first time by this loan, waiting for the form to finish before its bill day is asked.
+    @State private var cardToAsk: PaymentCard?
+    /// The card whose bill day is being asked now.
+    @State private var cardAskingBillDay: PaymentCard?
     @State private var isRecordingRepayment = false
     @State private var activeReminder: LoanReminder?
 
@@ -384,8 +388,12 @@ struct LoanFormView: View {
             }
             .sheet(item: $activeReminder) { reminder in
                 ReminderSheet(reminder: reminder) {
-                    dismiss()
+                    finish()
                 }
+            }
+            // The loan is already saved. Once the bill day is answered or skipped, the form closes.
+            .sheet(item: $cardAskingBillDay, onDismiss: { dismiss() }) { card in
+                BillingCycleSheet(card: card)
             }
         }
     }
@@ -556,13 +564,13 @@ struct LoanFormView: View {
                 $0.cardLastFour == card
             }
             if !alreadySaved {
-                modelContext.insert(
-                    PaymentCard(
-                        bankName: trimmedBank,
-                        cardLastFour: card,
-                        accountType: accountType
-                    )
+                let saved = PaymentCard(
+                    bankName: trimmedBank,
+                    cardLastFour: card,
+                    accountType: accountType
                 )
+                modelContext.insert(saved)
+                if accountType == .creditCard { cardToAsk = saved }
             }
         }
 
@@ -619,9 +627,24 @@ struct LoanFormView: View {
         }
     }
 
+    /// Closes the form, first asking for the bill day if this loan saved a new credit card.
+    private func finish() {
+        guard let card = cardToAsk else {
+            dismiss()
+            return
+        }
+        cardToAsk = nil
+        let isMessageOpen = activeReminder != nil
+        Task {
+            // Let the message sheet finish closing before another one opens.
+            if isMessageOpen { try? await Task.sleep(for: .milliseconds(500)) }
+            cardAskingBillDay = card
+        }
+    }
+
     private func save() {
         if persistLoan() != nil {
-            dismiss()
+            finish()
         }
     }
 
@@ -632,7 +655,7 @@ struct LoanFormView: View {
         openURL(url)
         // WhatsApp can't say whether it was sent, so the reminder is noted when it is opened.
         saved.lastRemindedAt = .now
-        dismiss()
+        finish()
     }
 
     private func saveAndMessage() {
