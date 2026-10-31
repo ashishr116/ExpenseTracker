@@ -34,6 +34,14 @@ struct BackupFile: Codable {
     var recurringExpenses: [RecurringExpenseDTO]?
     /// Missing in backups made before category limits existed.
     var categoryBudgets: [CategoryBudgetDTO]?
+    /// Missing in backups made before payment details existed.
+    var paymentDetails: PaymentDetailsDTO?
+}
+
+struct PaymentDetailsDTO: Codable {
+    var upiID: String
+    var payeeName: String
+    var includeCardDigits: Bool
 }
 
 struct CategoryBudgetDTO: Codable {
@@ -399,6 +407,11 @@ enum BackupManager {
             CategoryBudgetDTO(categoryRaw: $0.categoryRaw, limitPaise: $0.limitPaise, createdAt: $0.createdAt)
         }
 
+        file.paymentDetails = PaymentDetailsDTO(
+            upiID: PaymentDetails.upiID, payeeName: PaymentDetails.payeeName,
+            includeCardDigits: PaymentDetails.includesCardDigits
+        )
+
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -590,6 +603,14 @@ enum BackupManager {
             )
             budget.createdAt = dto.createdAt
             context.insert(budget)
+        }
+
+        // Only a backup that has them replaces the details on this phone.
+        if let details = file.paymentDetails {
+            let defaults = UserDefaults.standard
+            defaults.set(details.upiID, forKey: PaymentDetails.upiKey)
+            defaults.set(details.payeeName, forKey: PaymentDetails.nameKey)
+            defaults.set(details.includeCardDigits, forKey: PaymentDetails.includeCardKey)
         }
 
         // The restored instalments and premiums already carry their paid status. Without this, the one-time

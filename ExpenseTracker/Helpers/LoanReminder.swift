@@ -136,6 +136,12 @@ struct LoanReminder: Identifiable {
                 : "Hi \(friendName), a friendly reminder about the \(loans.count) payments pending with you:"
         }
 
+        // How to pay, as set under Payment Details. Left out when nothing is set.
+        let paymentLines = PaymentDetails.lines(for: loans)
+        let paymentBlock = paymentLines.isEmpty
+            ? ""
+            : "How to pay:\n" + paymentLines.map { "• \($0)" }.joined(separator: "\n") + "\n\n"
+
         return """
         \(intro)
 
@@ -143,7 +149,7 @@ struct LoanReminder: Identifiable {
 
         \(isAllInstalments ? "EMI due" : "Total due"): \(total.formatted(.rupees))
 
-        \(closing)
+        \(paymentBlock)\(closing)
         """
     }
 

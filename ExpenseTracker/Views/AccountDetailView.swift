@@ -178,6 +178,12 @@ struct AccountDetailView: View {
         ) {
             Button("Message", systemImage: "message") { sendReminder(.messages) }
             Button("WhatsApp", systemImage: "bubble.left.and.text.bubble.right") { sendReminder(.whatsApp) }
+            Button("PDF Statement", systemImage: "doc.richtext") {
+                if let share = remindingShare,
+                   let url = LoanStatementPDF.statement(for: share.friendName, loans: share.loans) {
+                    SharePresenter.present(urls: [url])
+                }
+            }
             Button("Cancel", role: .cancel) {}
         }
     }

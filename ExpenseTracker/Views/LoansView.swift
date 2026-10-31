@@ -12,6 +12,8 @@ struct LoansView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
     @Query(sort: \Loan.date, order: .reverse) private var loans: [Loan]
+    /// Your own EMIs, for the PDF summary.
+    @Query private var emis: [EMI]
 
     @State private var isAddingLoan = false
     @State private var editingLoan: Loan?
@@ -116,6 +118,16 @@ struct LoansView: View {
         .navigationTitle("Loans")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
+                Menu("More", systemImage: "ellipsis.circle") {
+                    Button("Share PDF Summary", systemImage: "doc.richtext") {
+                        if let url = LoanStatementPDF.summary(loans: loans, emis: emis) {
+                            SharePresenter.present(urls: [url])
+                        }
+                    }
+                    .disabled(loans.isEmpty && emis.isEmpty)
+                }
+            }
+            ToolbarItem(placement: .primaryAction) {
                 Button("Add Loan", systemImage: "plus") {
                     isAddingLoan = true
                 }
@@ -141,6 +153,12 @@ struct LoansView: View {
         .confirmationDialog("Send Reminder to \(waitingFriend)", isPresented: $isChoosingChannel, titleVisibility: .visible) {
             Button("Message", systemImage: "message") { start(channel: .messages) }
             Button("WhatsApp", systemImage: "bubble.left.and.text.bubble.right") { start(channel: .whatsApp) }
+            Button("PDF Statement", systemImage: "doc.richtext") {
+                // Opens the share sheet, where it can be sent over WhatsApp, Messages or anything else.
+                if let url = LoanStatementPDF.statement(for: waitingFriend, loans: waitingLoans) {
+                    SharePresenter.present(urls: [url])
+                }
+            }
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog(

@@ -29,6 +29,12 @@ Remembers your monthly salary, day and bank, and adds it to income each month, u
 ## `DataMigrations.swift`
 One-off upgrades for data saved by earlier versions. Safe to run on every launch.
 
+## `PaymentDetails.swift`
+Your UPI ID, the name shown with it, and whether a card's last 4 digits are shown, kept in the app's settings. Works out the "How to pay" lines for a set of loans: the UPI ID for cash, transfer and personal loans, and the card's name and digits for loans on your card. Used by reminder messages and PDFs.
+
+## `LoanStatementPDF.swift`
+Makes PDFs that can be shared. A summary of every loan to a friend plus your own EMIs, for your records, and a statement for one friend with only their loans, the payments they made, and how to pay. Lays text out over as many A4 pages as it needs.
+
 ## `CardBill.swift`
 - `CardBill.friendShares`: works out what each friend owes towards a credit card's bill, using the EMI for an instalment loan and the amount still owed for any other loan.
 - `CardBillReminder`: schedules notifications 3 days and 1 day before each credit card's next two due dates, saying which friends to remind. It rebuilds them whenever the app opens or a card changes.

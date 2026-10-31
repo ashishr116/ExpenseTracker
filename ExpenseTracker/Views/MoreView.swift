@@ -16,6 +16,7 @@ struct MoreView: View {
     @Query private var policies: [InsurancePolicy]
     @Query private var goals: [Goal]
     @Query private var recurringPlans: [RecurringExpense]
+    @AppStorage(PaymentDetails.upiKey) private var upiID = ""
 
     private var activeGoals: [Goal] { goals.filter { !$0.isCompleted } }
 
@@ -215,6 +216,23 @@ struct MoreView: View {
                     } icon: {
                         Image(systemName: "calendar.badge.clock")
                     }
+                }
+            }
+
+            NavigationLink {
+                PaymentDetailsView()
+            } label: {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Payment Details")
+                        // Shows the UPI ID once it is set, and what the screen is for until then.
+                        Text(upiID.isEmpty ? "Your UPI ID, added to reminders" : upiID)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                } icon: {
+                    Image(systemName: "indianrupeesign.bank.building")
                 }
             }
 
