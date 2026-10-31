@@ -288,6 +288,25 @@ private struct MonthlyExpenseList: View {
                         .foregroundStyle(balance - pending >= 0 ? .green : .red)
                 }
             }
+            // Credit card spending isn't taken from cash until the bill is paid. Shown only when a card was used.
+            let cash = MonthCashView(
+                income: income, expenses: expenses, cardPayments: transfers, cashLent: lent, cashRepaid: repaid
+            )
+            if cash.hasCardActivity {
+                LabeledContent("On Credit Cards") {
+                    Text(cash.cardSpent, format: .rupees)
+                        .foregroundStyle(.orange)
+                        .fontWeight(.semibold)
+                }
+                LabeledContent("Card Bills Paid") {
+                    Text(cash.billsPaid, format: .rupees)
+                }
+                LabeledContent("Cash Left") {
+                    Text(cash.cashLeft, format: .rupees)
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(cash.cashLeft >= 0 ? .green : .red)
+                }
+            }
             LabeledContent(
                 "Transactions",
                 value: expenses.count + incomes.count + loansLent.count + cashRepayments.count,

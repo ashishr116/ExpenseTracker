@@ -73,8 +73,21 @@ private struct BudgetSummaryList: View {
     @Query private var incomes: [Income]
     @Query private var loansLent: [Loan]
     @Query private var repayments: [LoanRepayment]
+    /// The month's transfers, for the card bills paid.
+    @Query private var transfers: [Transfer]
 
     private var cashRepayments: [LoanRepayment] { repayments.filter(\.isCashInflow) }
+
+    /// Cash spending kept apart from credit card spending. See `MonthCashView`.
+    private var cashView: MonthCashView {
+        MonthCashView(
+            income: incomes.totalAmount,
+            expenses: expenses,
+            cardPayments: transfers,
+            cashLent: loansLent.totalAmount,
+            cashRepaid: cashRepayments.totalAmount
+        )
+    }
 
     init(month: Date) {
         self.month = month
@@ -103,11 +116,13 @@ private struct BudgetSummaryList: View {
             sort: \LoanRepayment.date,
             order: .reverse
         )
+        _transfers = Query(filter: #Predicate<Transfer> { $0.date >= start && $0.date < end })
     }
 
     var body: some View {
         List {
             summarySection
+            cashSection
 
             if !incomes.isEmpty || !expenses.isEmpty {
                 Section("Breakdown") {
@@ -148,6 +163,55 @@ private struct BudgetSummaryList: View {
                     systemImage: "chart.pie",
                     description: Text("Add expenses, income or loans to see your budget plan.")
                 )
+            }
+        }
+    }
+
+    /// Cash in hand against credit card spending. Shown only in months where a credit card was used or paid.
+    @ViewBuilder
+    private var cashSection: some View {
+        let view = cashView
+        if view.hasCardActivity {
+            Section {
+                LabeledContent("Cash Left") {
+                    Text(view.cashLeft, format: .rupees)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(view.cashLeft >= 0 ? Color.green : Color.red)
+                }
+                LabeledContent("Spent in Cash, UPI & Debit") {
+                    Text(view.cashSpent, format: .rupees)
+                }
+                LabeledContent("Card Bills Paid") {
+                    Text(view.billsPaid, format: .rupees)
+                }
+                LabeledContent("Spent on Credit Cards") {
+                    Text(view.cardSpent, format: .rupees)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.orange)
+                }
+            } header: {
+                Text("Cash vs Credit Cards")
+            } footer: {
+                Text("Cash Left is your income, less what you spent in cash, UPI and on a debit card, less the card bills you paid. Credit card spending comes out of it only when you pay the bill. It still counts as spending above, and in your categories and limits.")
+            }
+
+            if !view.cards.isEmpty {
+                Section("Credit Card Spending") {
+                    ForEach(view.cards) { card in
+                        DisclosureGroup {
+                            ForEach(card.expenses) { expense in
+                                ExpenseRow(expense: expense)
+                            }
+                        } label: {
+                            LabeledContent {
+                                Text(card.total, format: .rupees)
+                                    .fontWeight(.semibold)
+                            } label: {
+                                Label(card.name, systemImage: "creditcard")
+                            }
+                        }
+                    }
+                }
             }
         }
     }

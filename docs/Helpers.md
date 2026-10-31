@@ -29,6 +29,9 @@ Remembers your monthly salary, day and bank, and adds it to income each month, u
 ## `DataMigrations.swift`
 One-off upgrades for data saved by earlier versions. Safe to run on every launch.
 
+## `MonthCashView.swift`
+Works out a month in terms of real cash: spending in cash, UPI and on a debit card, card bills paid, spending on credit cards (card by card), and the cash left. Used by the Budget summary and the Monthly screen. It adds to the existing totals and changes none of them.
+
 ## `BackupNudge.swift`
 Reminds you to back up after 30 days without one. Counts from your last backup, or from the first time the app opened with this feature if you've never made one. Works out whether the Daily screen banner shows, lets "Later" hide it for a week, and schedules a notification for when the 30 days are up, or weekly once they have passed.
 
