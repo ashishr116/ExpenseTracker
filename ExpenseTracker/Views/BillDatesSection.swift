@@ -21,7 +21,7 @@ struct BillDatesSection: View {
                 }
             }
             Picker("Payment Due On", selection: $dueDay) {
-                Text("Not Set").tag(0)
+                Text(statementDay > 0 ? "\(PaymentCard.defaultDueGap) Days After Bill" : "Not Set").tag(0)
                 ForEach(1...31, id: \.self) { day in
                     Text(Self.ordinal(day)).tag(day)
                 }
@@ -29,7 +29,7 @@ struct BillDatesSection: View {
         } header: {
             Text("Bill Dates")
         } footer: {
-            Text("Both are days of the month, as printed on your statement. You get a reminder before the due date, and so can friends who used this card. A day a month doesn't have, such as the 31st in April, means that month's last day.")
+            Text("Both are days of the month, as printed on your statement. Add the bill day and the due date is taken as \(PaymentCard.defaultDueGap) days later, unless you choose a due day. It sets the Billed and Unbilled amounts, and you get a reminder before the due date, and so can friends who used this card. A day a month doesn't have, such as the 31st in April, means that month's last day.")
         }
     }
 

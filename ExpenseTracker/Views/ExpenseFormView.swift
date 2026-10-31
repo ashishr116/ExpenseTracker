@@ -24,6 +24,8 @@ struct ExpenseFormView: View {
     @State private var category: ExpenseCategory
     @State private var customCategory: String
     @State private var date: Date
+    /// A credit card saved for the first time by this expense, while its bill day is being asked.
+    @State private var cardAskingBillDay: PaymentCard?
 
     /// - Parameter defaultDate: Date used for new entries from a selected day or month.
     /// - Parameters:
@@ -223,6 +225,10 @@ struct ExpenseFormView: View {
                         .disabled(!isValid)
                 }
             }
+            // The expense is already saved. Once the bill day is answered or skipped, the form closes.
+            .sheet(item: $cardAskingBillDay, onDismiss: { dismiss() }) { card in
+                BillingCycleSheet(card: card)
+            }
         }
     }
 
@@ -266,6 +272,8 @@ struct ExpenseFormView: View {
         let trimmedBank = isBank ? bankName.trimmingCharacters(in: .whitespacesAndNewlines) : ""
         let card = isCard ? cardLastFour : ""
 
+        // Set when a credit card is saved for the first time, so its bill day can be asked for.
+        var newCreditCard: PaymentCard?
         // Auto-save card to stored PaymentCard so user never has to re-enter it
         if isCard && (!trimmedBank.isEmpty || !card.isEmpty) {
             let alreadySaved = storedCards.contains {
@@ -274,13 +282,13 @@ struct ExpenseFormView: View {
                 $0.cardLastFour == card
             }
             if !alreadySaved {
-                modelContext.insert(
-                    PaymentCard(
-                        bankName: trimmedBank,
-                        cardLastFour: card,
-                        accountType: accountType
-                    )
+                let saved = PaymentCard(
+                    bankName: trimmedBank,
+                    cardLastFour: card,
+                    accountType: accountType
                 )
+                modelContext.insert(saved)
+                if accountType == .creditCard { newCreditCard = saved }
             }
         }
 
@@ -309,7 +317,11 @@ struct ExpenseFormView: View {
         // Warn if this expense takes a category to or past its monthly limit.
         let context = modelContext
         Task { await BudgetAlerts.check(in: context) }
-        dismiss()
+        if let newCreditCard {
+            cardAskingBillDay = newCreditCard
+        } else {
+            dismiss()
+        }
     }
 }
 

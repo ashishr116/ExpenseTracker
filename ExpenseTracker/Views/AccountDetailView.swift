@@ -110,7 +110,9 @@ struct AccountDetailView: View {
             }
 
             if account.kind == .creditCard, !account.isArchived {
-                billSection
+                billSection(statement: card.flatMap {
+                    CardBill.statement(for: $0, lines: lines, lentLines: lentLines, owed: balance + lent)
+                })
             }
 
             Section(hasFriends ? "My Movements" : "Movements") {
@@ -192,12 +194,37 @@ struct AccountDetailView: View {
 
     /// When the bill is generated and due, and what each friend who used the card should pay towards it.
     @ViewBuilder
-    private var billSection: some View {
+    private func billSection(statement: CardStatement?) -> some View {
         let dueDate = card?.nextDueDate()
         let shares = CardBill.friendShares(bankName: account.bankName, lastFour: account.cardLastFour, loans: loans)
 
         Section {
             if let card, card.hasDueDate, let dueDate {
+                if let statement {
+                    LabeledContent {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(statement.billed, format: .rupees)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(statement.billed > 0 ? Color.red : Color.green)
+                            Text(statement.billed > 0 ? "Bill of \(statement.billDate.formatted(.dateTime.day().month()))" : "Nothing left to pay")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } label: {
+                        Text("Billed")
+                    }
+                    LabeledContent {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(statement.unbilled, format: .rupees)
+                                .fontWeight(.semibold)
+                            Text("Since \(statement.billDate.formatted(.dateTime.day().month()))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } label: {
+                        Text("Unbilled")
+                    }
+                }
                 if let statement = card.nextStatementDate() {
                     LabeledContent("Next Bill Generated") {
                         Text(statement, format: .dateTime.day().month().year())
@@ -247,7 +274,7 @@ struct AccountDetailView: View {
                      ? "You'll get a reminder 3 days and 1 day before the due date."
                      : "You'll get a reminder 3 days and 1 day before the due date, saying who to remind. Friends pay the bank directly. The button opens a message or WhatsApp with the amount and due date already written.")
             } else {
-                Text("Add the day your bill is generated and the day it is due, to get reminders before it falls due.")
+                Text("Add the day your bill is generated. The due date is taken as 18 days later unless you set it, and you get reminders before it falls due.")
             }
         }
     }

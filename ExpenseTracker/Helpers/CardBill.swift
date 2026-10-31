@@ -20,7 +20,38 @@ struct CardBillShare: Identifiable {
     var id: String { friendName.lowercased() }
 }
 
+/// A card's latest bill and what has been spent since.
+struct CardStatement {
+    /// The day the latest bill was generated.
+    let billDate: Date
+    let dueDate: Date?
+    /// What is still to pay on that bill, after any payments since.
+    let billed: Decimal
+    /// Spent on the card since the bill was generated. It goes on the next bill.
+    let unbilled: Decimal
+    let nextBillDate: Date?
+}
+
 enum CardBill {
+    /// Splits what a card owes into the latest bill and the spending after it. `lines` and `lentLines` are the
+    /// card's own movements and friends' purchases, and `owed` is the total on the card, friends included.
+    static func statement(for card: PaymentCard, lines: [LedgerLine], lentLines: [LedgerLine], owed: Decimal, now: Date = .now) -> CardStatement? {
+        let calendar = Calendar.current
+        guard card.hasBillingCycle, let billDate = card.lastStatementDate(onOrBefore: now),
+              let cutoff = calendar.date(byAdding: .day, value: 1, to: billDate) else { return nil }
+        // Anything on the bill day itself is on that bill.
+        let unbilled = (lines + lentLines)
+            .filter { $0.date >= cutoff && $0.effect > 0 }
+            .reduce(Decimal(0)) { $0 + $1.effect }
+        return CardStatement(
+            billDate: billDate,
+            dueDate: card.dueDate(forStatementOn: billDate),
+            billed: max(0, owed - unbilled),
+            unbilled: unbilled,
+            nextBillDate: card.nextStatementDate(from: cutoff)
+        )
+    }
+
     /// Friends who still owe something on this card, biggest amount first.
     ///
     /// A loan is on the card when the bank matches and, if the card has digits, those match too. This is how
@@ -117,8 +148,7 @@ enum CardBillReminder {
                 }
                 scheduled += 1
                 // The following month's due date.
-                let monthStart = calendar.monthRange(containing: dueDate).upperBound
-                due = PaymentCard.date(day: card.dueDay, inMonth: monthStart)
+                due = card.nextDueDate(from: calendar.date(byAdding: .day, value: 1, to: dueDate) ?? dueDate)
             }
         }
     }

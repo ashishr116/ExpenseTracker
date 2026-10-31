@@ -116,17 +116,61 @@ final class PaymentCard {
 
     // MARK: Bill dates
 
-    /// The due day is set, so reminders can be worked out.
-    var hasDueDate: Bool { accountType == .creditCard && dueDay > 0 }
+    /// Days from the bill being generated to its due date when no due day is set.
+    static let defaultDueGap = 18
+
+    /// The bill day is set, so the statement can be worked out.
+    var hasBillingCycle: Bool { accountType == .creditCard && statementDay > 0 }
+
+    /// A due date can be worked out: from the due day, or from the bill day plus the default gap.
+    var hasDueDate: Bool { accountType == .creditCard && (dueDay > 0 || statementDay > 0) }
 
     /// The next payment due date, today included.
     func nextDueDate(from now: Date = .now) -> Date? {
-        PaymentCard.nextDate(day: dueDay, from: now)
+        if dueDay > 0 { return PaymentCard.nextDate(day: dueDay, from: now) }
+        guard statementDay > 0 else { return nil }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        // The latest bill may still be unpaid, so start from it and move on until a due date is ahead.
+        var statement = lastStatementDate(onOrBefore: now)
+        for _ in 0..<3 {
+            guard let current = statement else { return nil }
+            if let due = dueDate(forStatementOn: current), due >= today { return due }
+            statement = nextStatementDate(from: calendar.date(byAdding: .day, value: 1, to: current) ?? current)
+        }
+        return nil
     }
 
     /// The next day the bill is generated, today included.
     func nextStatementDate(from now: Date = .now) -> Date? {
         PaymentCard.nextDate(day: statementDay, from: now)
+    }
+
+    /// The latest day the bill was generated, today included.
+    func lastStatementDate(onOrBefore now: Date = .now) -> Date? {
+        guard statementDay > 0 else { return nil }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        var month = calendar.monthRange(containing: now).lowerBound
+        for _ in 0..<3 {
+            if let date = PaymentCard.date(day: statementDay, inMonth: month), date <= today { return date }
+            guard let previous = calendar.date(byAdding: .month, value: -1, to: month) else { return nil }
+            month = previous
+        }
+        return nil
+    }
+
+    /// When the bill generated on `statement` is due: the first due day after it, or the default gap later.
+    func dueDate(forStatementOn statement: Date) -> Date? {
+        let calendar = Calendar.current
+        guard dueDay > 0 else { return calendar.date(byAdding: .day, value: PaymentCard.defaultDueGap, to: statement) }
+        var month = calendar.monthRange(containing: statement).lowerBound
+        for _ in 0..<3 {
+            if let date = PaymentCard.date(day: dueDay, inMonth: month), date > statement { return date }
+            guard let next = calendar.date(byAdding: .month, value: 1, to: month) else { return nil }
+            month = next
+        }
+        return nil
     }
 
     /// The next date on or after today that falls on `day` of a month. A day the month doesn't have, such as the
