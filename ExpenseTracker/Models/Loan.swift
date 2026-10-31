@@ -214,6 +214,39 @@ final class Loan {
         return dates
     }
 
+    // MARK: Card charges
+
+    /// One amount billed to your card for this loan.
+    struct CardCharge {
+        let id: String
+        let date: Date
+        let amount: Decimal
+        /// Wording for an instalment, such as "EMI 2 of 6". `nil` for a loan billed whole.
+        let subtitle: String?
+    }
+
+    /// What this loan has put on your card up to `now`. A plain card loan is one charge on its day. An EMI is
+    /// one charge a month, starting on its day, so the card shows what the bank has billed so far.
+    func cardCharges(upTo now: Date) -> [CardCharge] {
+        let base = "card-loan-\(persistentModelID)"
+        guard isInstalmentLoan, let instalment = monthlyInstalment else {
+            return date <= now ? [CardCharge(id: base, date: date, amount: amount, subtitle: nil)] : []
+        }
+        let calendar = Calendar.current
+        var charges: [CardCharge] = []
+        for index in 0..<installmentCount {
+            guard let due = calendar.date(byAdding: .month, value: index, to: date), due <= now else { break }
+            // The last instalment takes any rounding, so the charges add up to the loan.
+            let isLast = index == installmentCount - 1
+            let share = isLast ? amount - instalment * Decimal(installmentCount - 1) : instalment
+            charges.append(CardCharge(
+                id: "\(base)-\(index)", date: due, amount: share,
+                subtitle: "EMI \(index + 1) of \(installmentCount)"
+            ))
+        }
+        return charges
+    }
+
     // MARK: Repayments
 
     /// Total received so far. A loan marked repaid before part payments existed counts as fully repaid.

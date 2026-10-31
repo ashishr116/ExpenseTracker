@@ -198,17 +198,20 @@ struct AccountLedger {
         var lent: [Entry] = []
         for loan in loans where loan.method == .card && loan.date <= now {
             guard let owner = creditCard(bank: loan.bankName, lastFour: loan.cardLastFour) else { continue }
-            lent.append(Entry(
-                accountUID: owner.uid,
-                line: LedgerLine(
-                    id: "card-loan-\(loan.persistentModelID)",
-                    date: loan.date,
-                    title: "Lent to \(loan.friendName)",
-                    subtitle: loan.note.isEmpty ? "Used your card" : loan.note,
-                    effect: loan.amount,
-                    transfer: nil
-                )
-            ))
+            // A friend's EMI is billed one instalment a month, as on the card statement. Any other loan is billed whole.
+            for charge in loan.cardCharges(upTo: now) {
+                lent.append(Entry(
+                    accountUID: owner.uid,
+                    line: LedgerLine(
+                        id: charge.id,
+                        date: charge.date,
+                        title: "Lent to \(loan.friendName)",
+                        subtitle: charge.subtitle ?? (loan.note.isEmpty ? "Used your card" : loan.note),
+                        effect: charge.amount,
+                        transfer: nil
+                    )
+                ))
+            }
         }
         for repayment in repayments where repayment.date <= now {
             guard let loan = repayment.loan, loan.method == .card,
