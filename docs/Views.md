@@ -26,7 +26,7 @@
 - **`InsuranceView.swift`**: insurance plans with premiums and upcoming dues.
 - **`PortfolioView.swift`**: net worth: investments, savings, debts, accounts, money friends owe you, and EMIs still to pay.
 - **`AccountsView.swift`**: all accounts with balances and totals. Also the line row used in account histories and the screen for entries not linked to any account.
-- **`AccountDetailView.swift`**: one account's movements with running balances, Pay Bill, and the screen for matching your real balance. For a credit card, splits mine from lent to friends, and shows what is Billed (with its due date) and what is Unbilled.
+- **`AccountDetailView.swift`**: one account's movements with running balances, Pay Bill, and the screen for matching your real balance. For a credit card, splits mine from lent to friends, and shows what is Billed (with its due date) and what is Unbilled. With a bill day set, its movements are split into a Billed list (one bill's period, with arrows to older bills) and an Unbilled list (spent since the last bill day).
 - **`BillDatesSection.swift`**: the "bill generated on" and "payment due on" pickers, shared by the Accounts form and the Saved Cards form. Leave the due day unset and it is taken as 18 days after the bill.
 - **`BillingCycleSheet.swift`**: asks for the bill day of a credit card used for the first time on an expense or a loan.
 - **`CardsView.swift`**: saved cards, masked until you unlock with Face ID.

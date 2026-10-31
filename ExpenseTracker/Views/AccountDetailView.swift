@@ -7,6 +7,14 @@ import SwiftUI
 import SwiftData
 
 /// One account's balance and every movement that built it, with a way to match it to the real balance.
+/// The two halves of a credit card's movements.
+private enum BillTab: String, CaseIterable, Identifiable {
+    case billed = "Billed"
+    case unbilled = "Unbilled"
+
+    var id: String { rawValue }
+}
+
 struct AccountDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Account.createdAt) private var accounts: [Account]
@@ -23,6 +31,9 @@ struct AccountDetailView: View {
     @State private var isEditing = false
     @State private var isReconciling = false
     @State private var isPayingBill = false
+    /// Which half of a card's movements is showing, and how many bills back the Billed half has been stepped.
+    @State private var billTab: BillTab = .billed
+    @State private var billsBack = 0
     /// The friend being reminded about this card's bill, and how.
     @State private var remindingShare: CardBillShare?
     @State private var isChoosingChannel = false
@@ -115,43 +126,47 @@ struct AccountDetailView: View {
                 })
             }
 
-            Section(hasFriends ? "My Movements" : "Movements") {
-                if lines.isEmpty {
-                    Text("Nothing has moved this account since it was opened.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(lines) { line in
-                    LedgerLineRow(
-                        line: line,
-                        isLiability: account.kind.isLiability,
-                        balanceAfter: runningBalances[line.id]
-                    )
-                        .swipeActions {
-                            // Only transfers and adjustments are removed here. Other entries are edited where they were made.
-                            if let transfer = line.transfer {
-                                Button("Delete", systemImage: "trash", role: .destructive) {
-                                    modelContext.delete(transfer)
-                                }
-                            }
-                        }
-                }
-            }
-
-            if hasFriends {
-                Section {
-                    ForEach(lentLines) { line in
+            if let card, let current = CardBill.cycle(for: card, back: 0) {
+                billCycleSections(card: card, current: current, lines: lines, lentLines: lentLines)
+            } else {
+                Section(hasFriends ? "My Movements" : "Movements") {
+                    if lines.isEmpty {
+                        Text("Nothing has moved this account since it was opened.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(lines) { line in
                         LedgerLineRow(
                             line: line,
-                            isLiability: false,
-                            balanceAfter: lentRunning[line.id],
-                            isFriendLine: true
+                            isLiability: account.kind.isLiability,
+                            balanceAfter: runningBalances[line.id]
                         )
+                            .swipeActions {
+                                // Only transfers and adjustments are removed here. Other entries are edited where they were made.
+                                if let transfer = line.transfer {
+                                    Button("Delete", systemImage: "trash", role: .destructive) {
+                                        modelContext.delete(transfer)
+                                    }
+                                }
+                            }
                     }
-                } header: {
-                    Text("Loaned to Friends")
-                } footer: {
-                    Text("Friends' purchases on this card. They pay the bank directly. Record each payment from Loans, and it comes off here. None of this is counted in your spending or your net worth.")
+                }
+
+                if hasFriends {
+                    Section {
+                        ForEach(lentLines) { line in
+                            LedgerLineRow(
+                                line: line,
+                                isLiability: false,
+                                balanceAfter: lentRunning[line.id],
+                                isFriendLine: true
+                            )
+                        }
+                    } header: {
+                        Text("Loaned to Friends")
+                    } footer: {
+                        Text("Friends' purchases on this card. They pay the bank directly. Record each payment from Loans, and it comes off here. None of this is counted in your spending or your net worth.")
+                    }
                 }
             }
         }
@@ -188,6 +203,92 @@ struct AccountDetailView: View {
             }
             Button("Cancel", role: .cancel) {}
         }
+    }
+
+    // MARK: Billed and unbilled
+
+    /// The card's movements split like a card statement: the bill already generated, and what has been spent since.
+    @ViewBuilder
+    private func billCycleSections(card: PaymentCard, current: CardCycle, lines: [LedgerLine], lentLines: [LedgerLine]) -> some View {
+        let friendIDs = Set(lentLines.map(\.id))
+        let all = (lines + lentLines).sorted { $0.date > $1.date }
+        let shown = billCycle(back: billsBack, card: card, current: current)
+        let rows: [LedgerLine] = {
+            switch billTab {
+            case .unbilled:
+                // Spending since the bill was generated. Payments are shown against the bill they pay.
+                return all.filter { $0.date >= current.end && $0.effect > 0 }
+            case .billed:
+                guard let shown else { return [] }
+                // For the latest bill, payments made since it was generated are shown too, so what is left is clear.
+                return all.filter { line in
+                    (line.date >= shown.start && line.date < shown.end)
+                        || (billsBack == 0 && line.date >= shown.end && line.effect < 0)
+                }
+            }
+        }()
+        let hasOlder = CardBill.cycle(for: card, back: billsBack + 1).map { $0.end > Calendar.current.startOfDay(for: account.openingDate) } ?? false
+
+        Section {
+            Picker("Show", selection: $billTab) {
+                ForEach(BillTab.allCases) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .listRowSeparator(.hidden)
+
+            if billTab == .billed, let shown {
+                HStack {
+                    Button("Older Bill", systemImage: "chevron.left") { billsBack += 1 }
+                        .disabled(!hasOlder)
+                    Spacer()
+                    VStack(spacing: 2) {
+                        Text("Bill of \(shown.billDate.formatted(.dateTime.day().month().year()))")
+                            .fontWeight(.semibold)
+                        if let due = shown.dueDate {
+                            Text("Due \(due.formatted(.dateTime.day().month().year()))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    Button("Newer Bill", systemImage: "chevron.right") { billsBack -= 1 }
+                        .disabled(billsBack == 0)
+                }
+                .labelStyle(.iconOnly)
+                // Borderless so each arrow is tappable on its own inside a list row.
+                .buttonStyle(.borderless)
+            }
+
+            if rows.isEmpty {
+                Text(billTab == .billed ? "Nothing on this bill." : "Nothing spent since the last bill.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(rows) { line in
+                LedgerLineRow(line: line, isLiability: true, isFriendLine: friendIDs.contains(line.id))
+                    .swipeActions {
+                        // Only transfers and adjustments are removed here. Other entries are edited where they were made.
+                        if let transfer = line.transfer {
+                            Button("Delete", systemImage: "trash", role: .destructive) {
+                                modelContext.delete(transfer)
+                            }
+                        }
+                    }
+            }
+        } header: {
+            Text(billTab == .billed ? "Billed" : "Unbilled · since \(current.billDate.formatted(.dateTime.day().month()))")
+        } footer: {
+            Text(billTab == .billed
+                 ? "Everything from this bill's period, friends' purchases included (shown in orange). Payments you have made towards the latest bill are listed too."
+                 : "Spent since the bill was generated. It moves to Billed on the next bill day. Friends' purchases on the card are included.")
+        }
+    }
+
+    /// The bill being shown: the latest one, or an older one stepped back to.
+    private func billCycle(back: Int, card: PaymentCard, current: CardCycle) -> CardCycle? {
+        back == 0 ? current : CardBill.cycle(for: card, back: back)
     }
 
     // MARK: Bill

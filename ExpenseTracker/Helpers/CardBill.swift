@@ -32,7 +32,35 @@ struct CardStatement {
     let nextBillDate: Date?
 }
 
+/// One bill's span of days on a credit card.
+struct CardCycle {
+    /// The day the bill was generated.
+    let billDate: Date
+    /// First day of the span, the day after the previous bill.
+    let start: Date
+    /// The day after the bill day, where the next span begins.
+    let end: Date
+    let dueDate: Date?
+}
+
 enum CardBill {
+    /// The bill `back` bills ago: 0 is the latest bill, 1 the one before it. `nil` without a bill day.
+    static func cycle(for card: PaymentCard, back: Int, now: Date = .now) -> CardCycle? {
+        guard card.hasBillingCycle else { return nil }
+        let calendar = Calendar.current
+        var bill = card.lastStatementDate(onOrBefore: now)
+        for _ in 0..<back {
+            guard let current = bill, let day = calendar.date(byAdding: .day, value: -1, to: current) else { return nil }
+            bill = card.lastStatementDate(onOrBefore: day)
+        }
+        guard let billDate = bill,
+              let end = calendar.date(byAdding: .day, value: 1, to: billDate),
+              let dayBefore = calendar.date(byAdding: .day, value: -1, to: billDate),
+              let previous = card.lastStatementDate(onOrBefore: dayBefore),
+              let start = calendar.date(byAdding: .day, value: 1, to: previous) else { return nil }
+        return CardCycle(billDate: billDate, start: start, end: end, dueDate: card.dueDate(forStatementOn: billDate))
+    }
+
     /// Splits what a card owes into the latest bill and the spending after it. `lines` and `lentLines` are the
     /// card's own movements and friends' purchases, and `owed` is the total on the card, friends included.
     static func statement(for card: PaymentCard, lines: [LedgerLine], lentLines: [LedgerLine], owed: Decimal, now: Date = .now) -> CardStatement? {
