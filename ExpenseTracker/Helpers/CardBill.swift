@@ -111,14 +111,15 @@ enum CardBill {
     }
 }
 
-/// Notifications before a credit card's bill is due, telling you which friends to remind.
+/// Notifications before a credit card's bill is due: your own reminder to pay it, and who to remind.
 ///
-/// An iPhone app can't send a message by itself. The notification tells you who to remind, and the card's
-/// screen has a button for each friend that opens a message or WhatsApp with the words already written.
+/// An iPhone app can't send a message by itself. The notification tells you who to remind, and tapping it
+/// opens the card, where each friend has a button that opens a message or WhatsApp with the words already
+/// written. The first one comes 5 days before the due date.
 enum CardBillReminder {
     private static let prefix = "cardbill-"
     /// How many days before the due date to remind.
-    private static let daysBefore = [3, 1]
+    private static let daysBefore = [5, 3, 1]
     /// How many due dates ahead to schedule. They are rebuilt every time the app opens.
     private static let dueDatesAhead = 2
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ExpenseTracker", category: "CardBillReminder")
@@ -142,13 +143,42 @@ enum CardBillReminder {
         defer { log.info("Scheduled \(count) card bill reminders for \(cards.count) card(s)") }
         let loans = (try? context.fetch(FetchDescriptor<Loan>())) ?? []
         let calendar = Calendar.current
+        // What is billed on each card, to put the amount in your own reminder.
+        let ledger = AccountLedger(
+            accounts: (try? context.fetch(FetchDescriptor<Account>())) ?? [],
+            expenses: (try? context.fetch(FetchDescriptor<Expense>())) ?? [],
+            incomes: (try? context.fetch(FetchDescriptor<Income>())) ?? [],
+            loans: loans,
+            repayments: (try? context.fetch(FetchDescriptor<LoanRepayment>())) ?? [],
+            transfers: (try? context.fetch(FetchDescriptor<Transfer>())) ?? [],
+            now: now
+        )
+        let accounts = (try? context.fetch(FetchDescriptor<Account>())) ?? []
 
         for card in cards {
+            let account = accounts.first { $0.uid == card.accountUID }
+            let statement = account.flatMap { account in
+                CardBill.statement(
+                    for: card,
+                    lines: ledger.lines(for: account),
+                    lentLines: ledger.lentLines(for: account),
+                    owed: ledger.balance(of: account) + ledger.lentOutstanding(of: account),
+                    now: now
+                )
+            }
             let shares = CardBill.friendShares(bankName: card.bankName, lastFour: card.cardLastFour, loans: loans)
             var due = card.nextDueDate(from: now)
             var scheduled = 0
 
             while let dueDate = due, scheduled < dueDatesAhead {
+                // The amount is only known for the bill already generated. Nothing is sent for a bill that is paid.
+                let billed = (scheduled == 0 && statement?.dueDate.map { calendar.isDate($0, inSameDayAs: dueDate) } == true)
+                    ? statement?.billed : nil
+                if billed == 0 && shares.isEmpty {
+                    scheduled += 1
+                    due = card.nextDueDate(from: calendar.date(byAdding: .day, value: 1, to: dueDate) ?? dueDate)
+                    continue
+                }
                 for offset in daysBefore {
                     guard let day = calendar.date(byAdding: .day, value: -offset, to: dueDate),
                           let fire = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: day),
@@ -158,14 +188,17 @@ enum CardBillReminder {
                     let name = card.displayName
                     let dueText = dueDate.formatted(.dateTime.day().month(.abbreviated))
                     content.title = "\(name) bill is due \(offset == 1 ? "tomorrow" : "in \(offset) days")"
+                    let mine = (billed ?? 0) > 0
+                        ? "Your bill of \((billed ?? 0).formatted(.rupees)) is due \(dueText)."
+                        : "Pay your bill by \(dueText) to avoid late charges."
                     if shares.isEmpty {
-                        content.body = "Pay your bill by \(dueText) to avoid late charges."
+                        content.body = mine
                     } else {
-                        let total = shares.reduce(Decimal(0)) { $0 + $1.amount }
-                        let names = shares.map(\.friendName).formatted(.list(type: .and))
-                        content.body = "Due \(dueText). Remind \(names) to pay their \(total.formatted(.rupees)). Open the card in Accounts to send reminders."
+                        let list = shares.map { "\($0.friendName) (\($0.amount.formatted(.rupees)))" }.formatted(.list(type: .and))
+                        content.body = "\(mine) Tap to remind \(list)."
                     }
                     content.sound = .default
+                    if !card.accountUID.isEmpty { content.userInfo = ["cardUID": card.accountUID] }
 
                     let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
                     let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)

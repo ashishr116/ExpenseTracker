@@ -43,7 +43,9 @@ Makes PDFs that can be shared. A summary of every loan to a friend plus your own
 
 ## `CardBill.swift`
 - `CardBill.friendShares`: works out what each friend owes towards a credit card's bill, using the EMI for an instalment loan and the amount still owed for any other loan.
-- `CardBillReminder`: schedules notifications 3 days and 1 day before each credit card's next two due dates, saying which friends to remind. It rebuilds them whenever the app opens or a card changes.
+- `CardBill.statement` and `CardBill.cycle`: split a card's total into the latest bill (Billed) and the spending since (Unbilled), and find the span of days of each bill.
+- `CardBillReminder`: schedules notifications 5, 3 and 1 days before each credit card's next two due dates. Each says what your bill is and which friends to remind, and is skipped when the bill is already paid. Tapping one opens that card. It rebuilds them whenever the app opens or a card changes.
+- `NotificationRouter` (in `NotificationDelegate.swift`): passes a tapped reminder's card to the screen that opens it.
 
 ## `MonthlyRecap.swift`
 Works out a month's recap: income, spending, what was kept, the comparison with the month before, the top three categories, the biggest expense, the category that rose most, fixed vs variable spending, limits that were exceeded, money set aside for goals, the daily average and no-spend days. Also writes a one-paragraph summary, used when sharing the recap and read aloud by VoiceOver in place of the chart. `RecapReminder` schedules the notification on the 1st of each month.

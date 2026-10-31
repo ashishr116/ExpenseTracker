@@ -11,6 +11,8 @@ struct ContentView: View {
     @State private var selectedMonth = Date.now
     @State private var selectedBudgetMonth = Date.now
 
+    @Query private var accounts: [Account]
+    @State private var router = NotificationRouter.shared
     @Query private var emis: [EMI]
     @Query private var policies: [InsurancePolicy]
 
@@ -57,6 +59,20 @@ struct ContentView: View {
                 Label("More", systemImage: "ellipsis")
             }
             .badge(attentionCount)
+        }
+        // A tapped card bill reminder opens that card.
+        .sheet(item: Binding(
+            get: { router.cardUID.flatMap { uid in accounts.first { $0.uid == uid } } },
+            set: { if $0 == nil { router.cardUID = nil } }
+        )) { account in
+            NavigationStack {
+                AccountDetailView(account: account)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { router.cardUID = nil }
+                        }
+                    }
+            }
         }
     }
 }
