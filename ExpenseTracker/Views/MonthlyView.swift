@@ -6,14 +6,33 @@
 import SwiftUI
 import SwiftData
 
+/// The two halves of the Monthly screen.
+private enum MonthlyPage: String, CaseIterable, Identifiable {
+    /// The month's figures: income, what was spent, and what is left in cash.
+    case cash = "Cash"
+    /// The month's transactions, day by day.
+    case purchases = "Purchases"
+
+    var id: String { rawValue }
+}
+
 /// Shows a month's income and its expenses consolidated into per-day totals.
 struct MonthlyView: View {
     @Binding var month: Date
+    @AppStorage("monthlyPage") private var page = MonthlyPage.cash
 
     var body: some View {
         VStack(spacing: 0) {
             MonthSelector(month: $month)
-            MonthlyExpenseList(month: month)
+            Picker("Show", selection: $page) {
+                ForEach(MonthlyPage.allCases) { page in
+                    Text(page.rawValue).tag(page)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+            MonthlyExpenseList(month: month, page: page)
         }
     }
 }
@@ -79,12 +98,11 @@ private struct MonthlyExpenseList: View {
 
     @State private var editingIncome: Income?
     @State private var editingExpense: Expense?
-    /// Whether the credit card figures inside Balance are showing. Closed to begin with, so the summary stays short.
-    @State private var isBalanceExpanded = false
-    /// Whether the main figures count what left your cash, or every purchase. See `SpendingBasis`.
-    @AppStorage(SpendingBasis.storageKey) private var basis = SpendingBasis.cash
+    /// Which half is showing: the month's figures, or its transactions.
+    private let page: MonthlyPage
 
-    init(month: Date) {
+    init(month: Date, page: MonthlyPage) {
+        self.page = page
         let range = Calendar.current.monthRange(containing: month)
         let start = range.lowerBound
         let end = range.upperBound
@@ -166,9 +184,12 @@ private struct MonthlyExpenseList: View {
 
     private var list: some View {
         List {
-            summaryGroup
+            // Cash shows the figures. Purchases shows the transactions.
+            if page == .cash {
+                summarySection
+            }
 
-            if !dayGroups.isEmpty {
+            if page == .purchases, !dayGroups.isEmpty {
                 Section("Transactions") {
                     ForEach(dayGroups) { entry in
                         DisclosureGroup {
@@ -252,28 +273,6 @@ private struct MonthlyExpenseList: View {
         .padding(.leading, 16)
     }
 
-    /// One line of the sum behind Cash Left.
-    private func workingRow(_ title: String, _ amount: Decimal) -> some View {
-        LabeledContent {
-            Text(amount, format: .rupees)
-        } label: {
-            Text(title)
-                .foregroundStyle(.secondary)
-        }
-        .font(.subheadline)
-    }
-
-    /// Why Balance and Cash Left differ: card spending counts as spent when you buy, and as cash only when you pay.
-    private func gapExplanation(cardSpent: Decimal, billsPaid: Decimal) -> String {
-        let gap = cardSpent - billsPaid
-        if gap > 0 {
-            return "Balance is \(gap.formatted(.rupees)) lower than Cash Left because that much of this month's card spending isn't paid yet."
-        } else if gap < 0 {
-            return "Balance is \((-gap).formatted(.rupees)) higher than Cash Left because you paid card bills from earlier months."
-        }
-        return "Balance and Cash Left match: the card spending this month has been paid."
-    }
-
     private func balanceRow(_ balance: Decimal) -> some View {
         LabeledContent("Balance") {
             Text(balance, format: .rupees)
@@ -282,20 +281,8 @@ private struct MonthlyExpenseList: View {
         }
     }
 
-    /// The Cash | Purchases switch, when a credit card was used this month, above the summary.
-    private var summaryGroup: some View {
-        let hasCardActivity = MonthCashView(
-            income: incomes.totalAmount, expenses: expenses, cardPayments: transfers,
-            cashLent: loansLent.totalAmount, cashRepaid: cashRepayments.totalAmount
-        ).hasCardActivity
-        return Group {
-            if hasCardActivity {
-                SpendingBasisPicker(basis: $basis)
-            }
-            summarySection
-        }
-    }
-
+    /// The month's figures. When a credit card was used, they count what has left your cash, and credit card
+    /// purchases are shown on their own line until the bill is paid.
     private var summarySection: some View {
         let income = incomes.totalAmount
         let spent = expenses.spentAmount
@@ -308,8 +295,8 @@ private struct MonthlyExpenseList: View {
         let cash = MonthCashView(
             income: income, expenses: expenses, cardPayments: transfers, cashLent: lent, cashRepaid: repaid
         )
-        // In the Cash view the main figures count what left your cash. Credit card purchases wait for the bill.
-        let usesCash = basis == .cash && cash.hasCardActivity
+        // When a card was used, the main figures count what left your cash. Credit card purchases wait for the bill.
+        let usesCash = cash.hasCardActivity
         let shownBalance = usesCash ? cash.cashLeft : balance
 
         return Section {
@@ -341,10 +328,6 @@ private struct MonthlyExpenseList: View {
                 }
                 .font(.subheadline)
                 .padding(.leading, 16)
-            } else if cash.cardSpent > 0 {
-                // How the spending was paid for. Only when a credit card was used, since otherwise it is all one kind.
-                splitRow("Via Credit Card", cash.cardSpent, color: .orange)
-                splitRow("Via UPI, Cash & Debit", cash.cashSpent, color: .primary)
             }
             if pending > 0 {
                 LabeledContent("Pending EMIs & Premiums") {
@@ -367,31 +350,8 @@ private struct MonthlyExpenseList: View {
                         .fontWeight(.semibold)
                 }
             }
-            if usesCash {
-                // Balance is Cash Left here, so there is nothing more to open.
-                balanceRow(cash.cashLeft)
-            } else if cash.hasCardActivity {
-                // Cash Left and the sum behind it sit inside Balance, and open when it is tapped.
-                DisclosureGroup(isExpanded: $isBalanceExpanded) {
-                    LabeledContent("Cash Left") {
-                        Text(cash.cashLeft, format: .rupees)
-                            .font(.body.weight(.bold))
-                            .foregroundStyle(cash.cashLeft >= 0 ? .green : .red)
-                    }
-                    workingRow("Income", income)
-                    workingRow("− Spent via UPI, Cash & Debit", cash.cashSpent)
-                    workingRow("− Card Bills Paid", cash.billsPaid)
-                    if lent > 0 { workingRow("− Lent to Friends", lent) }
-                    if repaid > 0 { workingRow("+ Repaid to You", repaid) }
-                    Text(gapExplanation(cardSpent: cash.cardSpent, billsPaid: cash.billsPaid))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } label: {
-                    balanceRow(balance)
-                }
-            } else {
-                balanceRow(balance)
-            }
+            // With a card in use, Balance is the cash left. Otherwise it is income less what was spent.
+            balanceRow(shownBalance)
             if pending > 0 {
                 LabeledContent("Left After Pending") {
                     Text(shownBalance - pending, format: .rupees)

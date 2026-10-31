@@ -3,7 +3,7 @@
 ## Daily, Monthly and Budget tabs
 - **`DailyView.swift`**: every expense, income, loan and card bill payment for one day, with totals. Shows the backup reminder banner when one is due, and opens the backup screen from it.
 - **`BackupNudgeBanner.swift`**: the "Back up your data" note, with Back Up Now and Later buttons.
-- **`MonthlyView.swift`**: a month's entries grouped by day, with income, spent, pending and balance.
+- **`MonthlyView.swift`**: the month in two tabs. **Cash** shows income, spent, credit card figures and balance. **Purchases** lists the month's entries grouped by day.
 - **`BudgetView.swift`**: the Budget tab. A switcher at the top picks one of five pages and builds only that one. Holds the Summary page and the income and expense breakdowns.
 - **`BudgetInsightViews.swift`**: the other Budget pages: Recap (opens with a bar chart of income, spending, last month's spending and what was kept), Limits, Fixed vs variable, Bank vs credit card vs cash, the category pie chart, and Saved this month.
 - **`BudgetLimitFormView.swift`**: set, change or remove a category's monthly limit.
@@ -39,9 +39,6 @@
 - **`GoalsView.swift`**: your goals with progress, how much is set aside, and whether each is on track or behind.
 - **`GoalFormView.swift`**: add or edit a goal, planning by monthly amount or by finish date. Also the sheet for adding money to a goal by hand.
 - **`GoalDetailView.swift`**: one goal's progress, plan and history, with Add Money, I Bought It (which can open an expense form with the price filled in), Edit and Delete.
-
-## Cash and purchases
-- **`SpendingBasisPicker.swift`**: the Cash | Purchases switch at the top of the Monthly and Budget summaries, and the setting behind it. It only changes the main Spent and Balance figures.
 
 ## Payment details
 - **`PaymentDetailsView.swift`**: where you enter your UPI ID and choose whether card digits are shown, with a live preview of the "How to pay" lines friends will see.
