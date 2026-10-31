@@ -448,3 +448,127 @@ struct BudgetSavedView: View {
         }
     }
 }
+
+// MARK: - Limits
+
+/// Monthly limits per category, with how much of each is used so far this month.
+struct BudgetLimitsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \CategoryBudget.createdAt) private var budgets: [CategoryBudget]
+    @Query private var monthExpenses: [Expense]
+
+    @State private var isAdding = false
+    @State private var editing: CategoryBudget?
+
+    init(month: Date) {
+        let range = Calendar.current.monthRange(containing: month)
+        let start = range.lowerBound
+        let end = range.upperBound
+        _monthExpenses = Query(filter: #Predicate<Expense> { $0.date >= start && $0.date < end })
+    }
+
+    private func spent(in category: ExpenseCategory) -> Decimal {
+        monthExpenses.filter { !$0.isPlanned && $0.category == category }.totalAmount
+    }
+
+    var body: some View {
+        let totalLimit = budgets.reduce(Decimal(0)) { $0 + $1.limit }
+        let totalSpent = budgets.reduce(Decimal(0)) { $0 + spent(in: $1.category) }
+
+        List {
+            if budgets.isEmpty {
+                Section {
+                    Label("Set a limit for a category", systemImage: "gauge.with.dots.needle.67percent")
+                        .font(.headline)
+                    Text("Say the most you want to spend each month on something, such as food or shopping. You'll see how much is used, and get a notice at 80% and again if you go over.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Section {
+                    LabeledContent("Limits Add Up To") {
+                        Text(totalLimit, format: .rupees).fontWeight(.semibold)
+                    }
+                    LabeledContent("Spent in Those") {
+                        Text(totalSpent, format: .rupees).fontWeight(.semibold)
+                    }
+                    ProgressView(value: min(1, max(0, totalLimit > 0 ? (totalSpent / totalLimit).asDouble : 0)))
+                        .tint(totalSpent > totalLimit ? .red : .accentColor)
+                }
+
+                Section("Categories") {
+                    ForEach(budgets) { budget in
+                        Button {
+                            editing = budget
+                        } label: {
+                            LimitRow(budget: budget, spent: spent(in: budget.category))
+                        }
+                        .tint(.primary)
+                        .swipeActions {
+                            Button("Delete", systemImage: "trash", role: .destructive) {
+                                modelContext.delete(budget)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Section {
+                Button("Add a Limit", systemImage: "plus.circle") { isAdding = true }
+                    .disabled(budgets.count >= ExpenseCategory.allCases.count)
+            }
+        }
+        .sheet(isPresented: $isAdding) {
+            BudgetLimitFormView()
+        }
+        .sheet(item: $editing) { budget in
+            BudgetLimitFormView(budget: budget)
+        }
+    }
+}
+
+private struct LimitRow: View {
+    let budget: CategoryBudget
+    let spent: Decimal
+
+    private var level: CategoryBudget.Level { budget.level(spent: spent) }
+
+    private var color: Color {
+        switch level {
+        case .fine: .green
+        case .near: .orange
+        case .over: .red
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label(budget.category.rawValue, systemImage: budget.category.systemImage)
+                    .font(.body.weight(.medium))
+                Spacer()
+                Text(share(spent, of: budget.limit), format: .percent.precision(.fractionLength(0)))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(color)
+            }
+            ProgressView(value: min(1, share(spent, of: budget.limit)))
+                .tint(color)
+            HStack {
+                Text("\(spent.formatted(.rupees)) of \(budget.limit.formatted(.rupees))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if spent > budget.limit {
+                    Text("\((spent - budget.limit).formatted(.rupees)) over")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.red)
+                } else {
+                    Text("\((budget.limit - spent).formatted(.rupees)) left")
+                        .font(.caption)
+                        .foregroundStyle(level == .near ? Color.orange : Color.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}

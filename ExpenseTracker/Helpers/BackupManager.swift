@@ -32,6 +32,14 @@ struct BackupFile: Codable {
     var goals: [GoalDTO]?
     /// Missing in backups made before recurring expenses existed.
     var recurringExpenses: [RecurringExpenseDTO]?
+    /// Missing in backups made before category limits existed.
+    var categoryBudgets: [CategoryBudgetDTO]?
+}
+
+struct CategoryBudgetDTO: Codable {
+    var categoryRaw: String
+    var limitPaise: Int64
+    var createdAt: Date
 }
 
 struct RecurringExpenseDTO: Codable {
@@ -384,6 +392,10 @@ enum BackupManager {
             )
         }
 
+        file.categoryBudgets = try all(CategoryBudget.self).map {
+            CategoryBudgetDTO(categoryRaw: $0.categoryRaw, limitPaise: $0.limitPaise, createdAt: $0.createdAt)
+        }
+
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -566,6 +578,15 @@ enum BackupManager {
             context.insert(plan)
         }
 
+        for dto in file.categoryBudgets ?? [] {
+            let budget = CategoryBudget(
+                category: ExpenseCategory(rawValue: dto.categoryRaw) ?? .other,
+                limit: Money.amount(fromPaise: dto.limitPaise)
+            )
+            budget.createdAt = dto.createdAt
+            context.insert(budget)
+        }
+
         // The restored instalments and premiums already carry their paid status. Without this, the one-time
         // upgrade that treats past-dated items as paid would run again and mark unpaid ones as paid.
         UserDefaults.standard.set(true, forKey: EMI.paidStateMigrationKey)
@@ -581,6 +602,7 @@ enum BackupManager {
             }
         }
         // Records that point at others first.
+        try deleteAll(CategoryBudget.self)
         try deleteAll(RecurringExpense.self)
         try deleteAll(GoalContribution.self)
         try deleteAll(Goal.self)

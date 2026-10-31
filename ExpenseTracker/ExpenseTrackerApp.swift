@@ -33,6 +33,7 @@ struct ExpenseTrackerApp: App {
             Goal.self,
             GoalContribution.self,
             RecurringExpense.self,
+            CategoryBudget.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -87,6 +88,7 @@ private struct RootView: View {
             SavingsSweep.run(in: modelContext)
             GoalAllocator.run(in: modelContext)
             SalaryPlanStore.postDue(in: modelContext)
+            await BudgetAlerts.check(in: modelContext)
 
             // A fresh install gets the guided setup. An install that already has data skips it.
             if !onboardingCompleted {
@@ -107,6 +109,7 @@ private struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 RecurringExpensePoster.run(in: modelContext)
+                Task { await BudgetAlerts.check(in: modelContext) }
                 SavingsSweep.run(in: modelContext)
                 GoalAllocator.run(in: modelContext)
                 SalaryPlanStore.postDue(in: modelContext)

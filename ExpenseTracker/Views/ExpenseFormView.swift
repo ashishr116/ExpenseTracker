@@ -306,6 +306,9 @@ struct ExpenseFormView: View {
             newExpense.customCategory = trimmedCustom
             modelContext.insert(newExpense)
         }
+        // Warn if this expense takes a category to or past its monthly limit.
+        let context = modelContext
+        Task { await BudgetAlerts.check(in: context) }
         dismiss()
     }
 }

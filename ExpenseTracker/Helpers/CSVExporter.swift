@@ -150,6 +150,12 @@ enum CSVExporter {
         }
         tables.append(recurringTable)
 
+        var limitTable = Table(fileName: "category-limits.csv", header: ["Category", "Monthly Limit"])
+        for budget in try all(CategoryBudget.self).sorted(by: { $0.createdAt < $1.createdAt }) {
+            limitTable.rows.append([budget.categoryRaw, money(budget.limit)])
+        }
+        tables.append(limitTable)
+
         var repaymentTable = Table(fileName: "loan_repayments.csv", header: [
             "Date", "Friend", "Amount", "Received In", "Note"
         ])

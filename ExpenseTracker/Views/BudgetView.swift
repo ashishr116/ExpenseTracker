@@ -14,6 +14,7 @@ struct BudgetView: View {
     /// The views on this tab. Only the selected one is built, so the others cost nothing until opened.
     private enum BudgetPage: String, CaseIterable, Identifiable {
         case summary = "Summary"
+        case limits = "Limits"
         case fixed = "Fixed"
         case payment = "Bank/Card"
         case chart = "Chart"
@@ -25,17 +26,36 @@ struct BudgetView: View {
     var body: some View {
         VStack(spacing: 0) {
             MonthSelector(month: $month)
-            Picker("View", selection: $page) {
-                ForEach(BudgetPage.allCases) { page in
-                    Text(page.rawValue).tag(page)
+            // Scrolls sideways, since there are more pages than fit across in one row.
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(BudgetPage.allCases) { item in
+                            Button {
+                                page = item
+                            } label: {
+                                Text(item.rawValue)
+                                    .font(.subheadline.weight(page == item ? .semibold : .regular))
+                                    .foregroundStyle(page == item ? .white : .primary)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 7)
+                                    .background(page == item ? Color.accentColor : Color(.secondarySystemFill), in: .capsule)
+                            }
+                            .buttonStyle(.plain)
+                            .id(item)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.bottom, 8)
+                .onChange(of: page) { _, newPage in
+                    withAnimation { proxy.scrollTo(newPage, anchor: .center) }
                 }
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.bottom, 8)
 
             switch page {
             case .summary: BudgetSummaryList(month: month)
+            case .limits: BudgetLimitsView(month: month)
             case .fixed: BudgetFixedVariableView(month: month)
             case .payment: BudgetPaymentModeView(month: month)
             case .chart: BudgetCategoryChartView(month: month)
