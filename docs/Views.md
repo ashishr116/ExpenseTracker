@@ -17,7 +17,7 @@
 - **`InsuranceFormView.swift`**: add or edit an insurance plan, including premiums already paid.
 - **`HoldingFormView.swift`**: add or edit an investment, savings balance or debt.
 - **`AccountFormView.swift`**: add or edit a bank, cash or credit-card account.
-- **`TransferFormView.swift`**: move money between accounts or pay a card bill.
+- **`TransferFormView.swift`**: move money between accounts or pay a card bill. When paying a card, a Friends' Share section lets you mark a friend's part as paid by you: it comes off their card loan and becomes a cash loan to them, noted "Card paid for loan".
 - **`CardFormView.swift`**: add or edit a saved card with full details.
 
 ## Lists and detail screens
