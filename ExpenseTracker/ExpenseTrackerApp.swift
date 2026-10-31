@@ -30,6 +30,8 @@ struct ExpenseTrackerApp: App {
             MonthlySavings.self,
             Account.self,
             Transfer.self,
+            Goal.self,
+            GoalContribution.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -80,6 +82,7 @@ private struct RootView: View {
             // Credit cards added under Accounts before this existed get their saved card now.
             CardSync.sync(in: modelContext)
             SavingsSweep.run(in: modelContext)
+            GoalAllocator.run(in: modelContext)
             SalaryPlanStore.postDue(in: modelContext)
 
             // A fresh install gets the guided setup. An install that already has data skips it.
@@ -101,6 +104,7 @@ private struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 SavingsSweep.run(in: modelContext)
+                GoalAllocator.run(in: modelContext)
                 SalaryPlanStore.postDue(in: modelContext)
             } else {
                 // SwiftData saves a few seconds after a change. Save now, so leaving the app never loses an entry.

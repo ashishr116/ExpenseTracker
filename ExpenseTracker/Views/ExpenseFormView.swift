@@ -26,10 +26,13 @@ struct ExpenseFormView: View {
     @State private var date: Date
 
     /// - Parameter defaultDate: Date used for new entries from a selected day or month.
-    init(expense: Expense? = nil, defaultDate: Date = .now) {
+    /// - Parameters:
+    ///   - prefillTitle: Description to start a new expense with, for example the name of a goal just bought.
+    ///   - prefillAmount: Amount to start a new expense with.
+    init(expense: Expense? = nil, defaultDate: Date = .now, prefillTitle: String = "", prefillAmount: Decimal? = nil) {
         self.expense = expense
-        _title = State(initialValue: expense?.title ?? "")
-        _amount = State(initialValue: expense?.amount)
+        _title = State(initialValue: expense?.title ?? prefillTitle)
+        _amount = State(initialValue: expense?.amount ?? prefillAmount)
         _accountType = State(initialValue: expense?.accountType ?? .creditCard)
         _bankName = State(initialValue: expense?.bankName ?? "")
         _cardLastFour = State(initialValue: expense?.cardLastFour ?? "")

@@ -14,6 +14,9 @@ struct MoreView: View {
     @Query private var savedCards: [PaymentCard]
     @Query private var monthlySavings: [MonthlySavings]
     @Query private var policies: [InsurancePolicy]
+    @Query private var goals: [Goal]
+
+    private var activeGoals: [Goal] { goals.filter { !$0.isCompleted } }
 
     /// EMIs that are due today or overdue.
     private var emisNeedingAttention: Int {
@@ -101,6 +104,28 @@ struct MoreView: View {
                         }
                     } icon: {
                         Image(systemName: "banknote")
+                    }
+                }
+            }
+
+            NavigationLink {
+                GoalsView()
+            } label: {
+                LabeledContent {
+                    if !activeGoals.isEmpty {
+                        Text(activeGoals.reduce(Decimal(0)) { $0 + $1.saved }, format: .rupees)
+                            .foregroundStyle(.green)
+                    }
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Goals")
+                            Text("Save up for something you want to buy")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "target")
                     }
                 }
             }

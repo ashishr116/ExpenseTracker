@@ -14,6 +14,7 @@ Built with SwiftUI and SwiftData. Requires the iOS version set in the Xcode proj
 | **EMIs** | Instalment plans. Each month is a real expense that counts only once you record it as paid. |
 | **Insurance** | Health and term plans, with premiums handled the same way as EMIs. |
 | **Loans** | Money lent to friends: cash loans, friends using your card (one-off or as an EMI), and personal loans in your name. Part payments, monthly EMI reminders, and reminders by message or WhatsApp. |
+| **Goals** | Save up for something you want to buy. Say what it costs and what you can spare each month, or the date you want it by, and the app works out the other. The monthly amount is set aside from what is left over at month end. The money stays in your savings and is only marked for the goal. |
 | **Net worth** | Investments, savings and debts, plus what friends owe you. |
 | **Saved Cards** | Card details behind Face ID. |
 | **Backup** | CSV export for spreadsheets, and a full JSON backup that can be saved to iCloud Drive and restored. |

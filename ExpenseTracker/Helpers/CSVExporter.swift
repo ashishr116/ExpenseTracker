@@ -74,6 +74,7 @@ enum CSVExporter {
         let expenses = try all(Expense.self).sorted { $0.date < $1.date }
         let incomes = try all(Income.self).sorted { $0.date < $1.date }
         let loans = try all(Loan.self).sorted { $0.date < $1.date }
+        let goals = try all(Goal.self).sorted { $0.createdAt < $1.createdAt }
         let repayments = try all(LoanRepayment.self).sorted { $0.date < $1.date }
         let transfers = try all(Transfer.self).sorted { $0.date < $1.date }
         let ledger = AccountLedger(
@@ -125,6 +126,17 @@ enum CSVExporter {
             ])
         }
         tables.append(loanTable)
+
+        var goalTable = Table(fileName: "goals.csv", header: [
+            "Name", "Target", "Set Aside", "Monthly Amount", "Start Month", "Finish By", "Bought On"
+        ])
+        for goal in goals {
+            goalTable.rows.append([
+                text(goal.name), money(goal.target), money(goal.saved), money(goal.monthly),
+                date(goal.startMonth), date(goal.targetDate), date(goal.completedAt)
+            ])
+        }
+        tables.append(goalTable)
 
         var repaymentTable = Table(fileName: "loan_repayments.csv", header: [
             "Date", "Friend", "Amount", "Received In", "Note"

@@ -28,6 +28,27 @@ struct BackupFile: Codable {
     var cards: [CardDTO] = []
     var transfers: [TransferDTO] = []
     var monthlySavings: [SavingsDTO] = []
+    /// Missing in backups made before goals existed.
+    var goals: [GoalDTO]?
+}
+
+struct GoalDTO: Codable {
+    var name: String
+    var targetPaise: Int64
+    var monthlyPaise: Int64
+    var startMonth: Date
+    var targetDate: Date?
+    var lastProcessedMonth: Date?
+    var completedAt: Date?
+    var createdAt: Date
+    var contributions: [GoalContributionDTO]
+}
+
+struct GoalContributionDTO: Codable {
+    var amountPaise: Int64
+    var date: Date
+    var note: String
+    var month: Date?
 }
 
 struct AccountDTO: Codable {
@@ -325,6 +346,18 @@ enum BackupManager {
             )
         }
 
+        file.goals = try all(Goal.self).map { goal in
+            GoalDTO(
+                name: goal.name, targetPaise: goal.targetPaise, monthlyPaise: goal.monthlyPaise,
+                startMonth: goal.startMonth, targetDate: goal.targetDate,
+                lastProcessedMonth: goal.lastProcessedMonth, completedAt: goal.completedAt,
+                createdAt: goal.createdAt,
+                contributions: goal.contributions.map {
+                    GoalContributionDTO(amountPaise: $0.amountPaise, date: $0.date, note: $0.note, month: $0.month)
+                }
+            )
+        }
+
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -474,6 +507,25 @@ enum BackupManager {
             if let index = dto.transfer, transfers.indices.contains(index) { record.transfer = transfers[index] }
         }
 
+        for dto in file.goals ?? [] {
+            let goal = Goal(
+                name: dto.name, target: Money.amount(fromPaise: dto.targetPaise),
+                monthly: Money.amount(fromPaise: dto.monthlyPaise), targetDate: dto.targetDate,
+                startMonth: dto.startMonth
+            )
+            goal.lastProcessedMonth = dto.lastProcessedMonth
+            goal.completedAt = dto.completedAt
+            goal.createdAt = dto.createdAt
+            context.insert(goal)
+            for item in dto.contributions {
+                let contribution = GoalContribution(
+                    amount: Money.amount(fromPaise: item.amountPaise), date: item.date, note: item.note, month: item.month
+                )
+                context.insert(contribution)
+                goal.contributions.append(contribution)
+            }
+        }
+
         // The restored instalments and premiums already carry their paid status. Without this, the one-time
         // upgrade that treats past-dated items as paid would run again and mark unpaid ones as paid.
         UserDefaults.standard.set(true, forKey: EMI.paidStateMigrationKey)
@@ -489,6 +541,8 @@ enum BackupManager {
             }
         }
         // Records that point at others first.
+        try deleteAll(GoalContribution.self)
+        try deleteAll(Goal.self)
         try deleteAll(MonthlySavings.self)
         try deleteAll(Transfer.self)
         try deleteAll(LoanRepayment.self)

@@ -331,12 +331,14 @@ struct BudgetSavedView: View {
     @Query private var loansLent: [Loan]
     @Query private var repayments: [LoanRepayment]
     @Query private var savingsRecords: [MonthlySavings]
+    @Query private var goalContributions: [GoalContribution]
 
     init(month: Date) {
         self.month = month
         let range = Calendar.current.monthRange(containing: month)
         let start = range.lowerBound
         let end = range.upperBound
+        _goalContributions = Query(filter: #Predicate<GoalContribution> { $0.date >= start && $0.date < end })
         _expenses = Query(filter: #Predicate<Expense> { $0.date >= start && $0.date < end })
         _incomes = Query(filter: #Predicate<Income> { $0.date >= start && $0.date < end })
         let cashMethod = LoanMethod.cash.rawValue
@@ -386,7 +388,7 @@ struct BudgetSavedView: View {
                     Text(income, format: .rupees).foregroundStyle(.green)
                 }
                 LabeledContent("Spent") {
-                    Text("−\(spent.formatted(.rupees))")
+                    Text(spent > 0 ? "−\(spent.formatted(.rupees))" : spent.formatted(.rupees))
                 }
                 if lent > 0 {
                     LabeledContent("Lent to Friends") {
@@ -415,6 +417,17 @@ struct BudgetSavedView: View {
                     }
                 } footer: {
                     Text("These are due this month but not paid yet, so they are not in the saved figure above.")
+                }
+            }
+
+            if goalContributions.totalAmount > 0 {
+                Section {
+                    LabeledContent("Set Aside for Goals") {
+                        Text(goalContributions.totalAmount, format: .rupees)
+                            .foregroundStyle(.green)
+                    }
+                } footer: {
+                    Text("Part of what you saved, marked for your goals. It is still in your savings.")
                 }
             }
 

@@ -28,6 +28,11 @@
 - **`CardsView.swift`**: saved cards, masked until you unlock with Face ID.
 - **`MoreView.swift`**: the More tab, linking to everything else.
 
+## Goals
+- **`GoalsView.swift`**: your goals with progress, how much is set aside, and whether each is on track or behind.
+- **`GoalFormView.swift`**: add or edit a goal, planning by monthly amount or by finish date. Also the sheet for adding money to a goal by hand.
+- **`GoalDetailView.swift`**: one goal's progress, plan and history, with Add Money, I Bought It (which can open an expense form with the price filled in), Edit and Delete.
+
 ## Money setup and tools
 - **`OnboardingView.swift`**: the first-launch setup for accounts, cards, salary and investments.
 - **`SalaryPlanView.swift`**: the monthly salary fields and the screen to change or switch them off.

@@ -26,6 +26,11 @@ SwiftData records saved on the device. Money is stored as whole paise and read b
 - `Loan`: money lent to a friend. Supports part payments, an instalment count and amount (for a personal loan or a friend's EMI on your card), and a monthly reminder day.
 - `LoanRepayment`: one payment received from the friend. Only repayments of cash loans count as income.
 
+## `Goal.swift`
+- `Goal`: something you are saving for, with a target, a monthly amount, an optional finish date, and when it was bought. Works out progress, the month it will be ready, and how far behind plan it is.
+- `GoalContribution`: one amount set aside, automatically at month end or added by hand.
+- `GoalAllocator`: at launch, goes through each finished month and sets aside every goal's monthly amount from that month's leftover, oldest goal first. A month with less left over sets aside less, and a month is never counted twice. The money is only marked for the goal. No balance or net worth changes.
+
 ## `Holding.swift`
 `Holding` and `HoldingKind`: an investment, savings balance or debt entered by hand for net worth.
 
