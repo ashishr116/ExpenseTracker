@@ -1,7 +1,8 @@
 # Views (screens and forms)
 
 ## Daily, Monthly and Budget tabs
-- **`DailyView.swift`**: every expense, income, loan and card bill payment for one day, with totals.
+- **`DailyView.swift`**: every expense, income, loan and card bill payment for one day, with totals. Shows the backup reminder banner when one is due, and opens the backup screen from it.
+- **`BackupNudgeBanner.swift`**: the "Back up your data" note, with Back Up Now and Later buttons.
 - **`MonthlyView.swift`**: a month's entries grouped by day, with income, spent, pending and balance.
 - **`BudgetView.swift`**: the Budget tab. A switcher at the top picks one of five pages and builds only that one. Holds the Summary page and the income and expense breakdowns.
 - **`BudgetInsightViews.swift`**: the other Budget pages: Recap (opens with a bar chart of income, spending, last month's spending and what was kept), Limits, Fixed vs variable, Bank vs credit card vs cash, the category pie chart, and Saved this month.

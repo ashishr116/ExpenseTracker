@@ -63,7 +63,7 @@ struct DataBackupView: View {
             } header: {
                 Text("Backup")
             } footer: {
-                Text("Saves everything in one file you can restore later. In the save sheet, choose iCloud Drive to keep it in iCloud. Backups are not automatic, so make one after big changes. Full card numbers, expiry and CVV are not included.")
+                Text("Saves everything in one file you can restore later. In the save sheet, choose iCloud Drive to keep it in iCloud. Backups are not automatic, so make one after big changes. You'll be reminded after 30 days without one. Full card numbers, expiry and CVV are not included.")
             }
 
             Section {
@@ -86,6 +86,8 @@ struct DataBackupView: View {
             switch result {
             case .success:
                 lastBackup = Date.now.timeIntervalSince1970
+                // The 30 days start again, so the reminder moves to match.
+                Task { await BackupNudge.scheduleReminder() }
                 message = Message(title: "Backup Saved", text: "Your backup was saved. Keep it somewhere safe, such as iCloud Drive.")
             case .failure(let error):
                 message = Message(title: "Backup Failed", text: error.localizedDescription)

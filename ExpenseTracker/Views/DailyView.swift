@@ -9,13 +9,27 @@ import SwiftData
 /// Shows every transaction (expenses, income, and loans) for a single selected day (today by default).
 struct DailyView: View {
     @Binding var selectedDate: Date
+    @State private var isBackingUp = false
 
     var body: some View {
         VStack(spacing: 0) {
             DatePicker("Day", selection: $selectedDate, displayedComponents: .date)
                 .padding(.horizontal)
                 .padding(.vertical, 8)
+            // Appears only when 30 days have passed without a backup.
+            BackupNudgeBanner { isBackingUp = true }
             DailyTransactionList(day: selectedDate)
+        }
+        // Here and not on the banner, which disappears once the backup is made.
+        .sheet(isPresented: $isBackingUp) {
+            NavigationStack {
+                DataBackupView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { isBackingUp = false }
+                        }
+                    }
+            }
         }
     }
 }

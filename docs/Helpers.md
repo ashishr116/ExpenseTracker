@@ -29,6 +29,9 @@ Remembers your monthly salary, day and bank, and adds it to income each month, u
 ## `DataMigrations.swift`
 One-off upgrades for data saved by earlier versions. Safe to run on every launch.
 
+## `BackupNudge.swift`
+Reminds you to back up after 30 days without one. Counts from your last backup, or from the first time the app opened with this feature if you've never made one. Works out whether the Daily screen banner shows, lets "Later" hide it for a week, and schedules a notification for when the 30 days are up, or weekly once they have passed.
+
 ## `PaymentDetails.swift`
 Your UPI ID, the name shown with it, and whether a card's last 4 digits are shown, kept in the app's settings. Works out the "How to pay" lines for a set of loans: the UPI ID for cash, transfer and personal loans, and the card's name and digits for loans on your card. Used by reminder messages and PDFs.
 

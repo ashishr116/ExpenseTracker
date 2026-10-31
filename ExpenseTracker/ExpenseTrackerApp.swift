@@ -91,6 +91,8 @@ private struct RootView: View {
             await BudgetAlerts.check(in: modelContext)
             await RecapReminder.scheduleIfNeeded()
             await CardBillReminder.reschedule(in: modelContext)
+            BackupNudge.recordFirstSeen()
+            await BackupNudge.scheduleReminder()
 
             // A fresh install gets the guided setup. An install that already has data skips it.
             if !onboardingCompleted {
