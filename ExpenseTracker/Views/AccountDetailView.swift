@@ -15,12 +15,23 @@ struct AccountDetailView: View {
     @Query private var loans: [Loan]
     @Query private var repayments: [LoanRepayment]
     @Query private var transfers: [Transfer]
+    @Query private var savedCards: [PaymentCard]
+    @Environment(\.openURL) private var openURL
 
     let account: Account
 
     @State private var isEditing = false
     @State private var isReconciling = false
     @State private var isPayingBill = false
+    /// The friend being reminded about this card's bill, and how.
+    @State private var remindingShare: CardBillShare?
+    @State private var isChoosingChannel = false
+    @State private var reminder: LoanReminder?
+
+    /// The saved card that holds this credit card's bill dates.
+    private var card: PaymentCard? {
+        account.kind == .creditCard ? savedCards.first { $0.accountUID == account.uid } : nil
+    }
 
     private var ledger: AccountLedger {
         AccountLedger(
@@ -98,6 +109,10 @@ struct AccountDetailView: View {
                 }
             }
 
+            if account.kind == .creditCard, !account.isArchived {
+                billSection
+            }
+
             Section(hasFriends ? "My Movements" : "Movements") {
                 if lines.isEmpty {
                     Text("Nothing has moved this account since it was opened.")
@@ -149,6 +164,117 @@ struct AccountDetailView: View {
         }
         .sheet(isPresented: $isPayingBill) {
             TransferFormView(payingCard: account, owed: balance)
+        }
+        .sheet(item: $reminder) { reminder in
+            ReminderSheet(reminder: reminder) {
+                // Note when each friend was last reminded.
+                for loan in reminder.loans { loan.lastRemindedAt = .now }
+            }
+        }
+        .confirmationDialog(
+            "Remind \(remindingShare?.friendName ?? "Friend")",
+            isPresented: $isChoosingChannel,
+            titleVisibility: .visible
+        ) {
+            Button("Message", systemImage: "message") { sendReminder(.messages) }
+            Button("WhatsApp", systemImage: "bubble.left.and.text.bubble.right") { sendReminder(.whatsApp) }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    // MARK: Bill
+
+    /// When the bill is generated and due, and what each friend who used the card should pay towards it.
+    @ViewBuilder
+    private var billSection: some View {
+        let dueDate = card?.nextDueDate()
+        let shares = CardBill.friendShares(bankName: account.bankName, lastFour: account.cardLastFour, loans: loans)
+
+        Section {
+            if let card, card.hasDueDate, let dueDate {
+                if let statement = card.nextStatementDate() {
+                    LabeledContent("Next Bill Generated") {
+                        Text(statement, format: .dateTime.day().month().year())
+                    }
+                }
+                LabeledContent("Payment Due") {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(dueDate, format: .dateTime.day().month().year())
+                            .fontWeight(.semibold)
+                        Text(Self.countdown(to: dueDate))
+                            .font(.caption)
+                            .foregroundStyle(Self.daysUntil(dueDate) <= 3 ? Color.red : Color.secondary)
+                    }
+                }
+                ForEach(shares) { share in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(share.friendName)
+                            Text("Their part of this bill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(share.amount, format: .rupees)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.orange)
+                        Button("Remind \(share.friendName)", systemImage: "message.circle.fill") {
+                            remindingShare = share
+                            isChoosingChannel = true
+                        }
+                        .labelStyle(.iconOnly)
+                        .font(.title2)
+                        // Borderless so the tap doesn't count for the whole row.
+                        .buttonStyle(.borderless)
+                    }
+                }
+            } else {
+                Button("Set Bill Dates", systemImage: "calendar.badge.clock") {
+                    isEditing = true
+                }
+            }
+        } header: {
+            Text("Bill")
+        } footer: {
+            if card?.hasDueDate == true {
+                Text(shares.isEmpty
+                     ? "You'll get a reminder 3 days and 1 day before the due date."
+                     : "You'll get a reminder 3 days and 1 day before the due date, saying who to remind. Friends pay the bank directly. The button opens a message or WhatsApp with the amount and due date already written.")
+            } else {
+                Text("Add the day your bill is generated and the day it is due, to get reminders before it falls due.")
+            }
+        }
+    }
+
+    /// Opens the reminder for the friend chosen in the dialog.
+    private func sendReminder(_ channel: ReminderChannel) {
+        guard let share = remindingShare, let due = card?.nextDueDate() else { return }
+        var message = LoanReminder(friendName: share.friendName, loans: share.loans, phone: share.phone)
+        let cardName = account.bankName.isEmpty ? "credit card" : "\(account.bankName) credit card"
+        message.billDue = CardBillDue(cardName: cardName, date: due)
+
+        switch channel {
+        case .messages:
+            reminder = message
+        case .whatsApp:
+            guard let url = message.whatsAppURL else { return }
+            openURL(url)
+            // WhatsApp can't say whether it was sent, so it is noted when WhatsApp opens.
+            for loan in share.loans { loan.lastRemindedAt = .now }
+        }
+    }
+
+    private static func daysUntil(_ date: Date) -> Int {
+        let calendar = Calendar.current
+        return calendar.dateComponents([.day], from: calendar.startOfDay(for: .now), to: calendar.startOfDay(for: date)).day ?? 0
+    }
+
+    /// "Today", "Tomorrow" or "In 12 days".
+    private static func countdown(to date: Date) -> String {
+        switch daysUntil(date) {
+        case ..<1: "Due today"
+        case 1: "Tomorrow"
+        case let days: "In \(days) days"
         }
     }
 

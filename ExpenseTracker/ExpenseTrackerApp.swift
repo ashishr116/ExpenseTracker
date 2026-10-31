@@ -90,6 +90,7 @@ private struct RootView: View {
             SalaryPlanStore.postDue(in: modelContext)
             await BudgetAlerts.check(in: modelContext)
             await RecapReminder.scheduleIfNeeded()
+            await CardBillReminder.reschedule(in: modelContext)
 
             // A fresh install gets the guided setup. An install that already has data skips it.
             if !onboardingCompleted {
@@ -110,7 +111,11 @@ private struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 RecurringExpensePoster.run(in: modelContext)
-                Task { await BudgetAlerts.check(in: modelContext) }
+                Task {
+                    await BudgetAlerts.check(in: modelContext)
+                    // Who owes what on a card may have changed since the reminders were set.
+                    await CardBillReminder.reschedule(in: modelContext)
+                }
                 SavingsSweep.run(in: modelContext)
                 GoalAllocator.run(in: modelContext)
                 SalaryPlanStore.postDue(in: modelContext)

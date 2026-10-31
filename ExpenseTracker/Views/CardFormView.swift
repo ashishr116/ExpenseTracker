@@ -21,6 +21,8 @@ struct CardFormView: View {
     @State private var accountType: AccountType
     @State private var nickname: String
     @State private var isCVVVisible = false
+    @State private var statementDay: Int
+    @State private var dueDay: Int
 
     init(card: PaymentCard? = nil) {
         self.card = card
@@ -31,6 +33,8 @@ struct CardFormView: View {
         _cardholderName = State(initialValue: card?.cardholderName ?? "")
         _accountType = State(initialValue: card?.accountType ?? .creditCard)
         _nickname = State(initialValue: card?.nickname ?? "")
+        _statementDay = State(initialValue: card?.statementDay ?? 0)
+        _dueDay = State(initialValue: card?.dueDay ?? 0)
     }
 
     private var trimmedBank: String {
@@ -104,6 +108,10 @@ struct CardFormView: View {
 
                     TextField("Nickname (optional, e.g. Regalia Gold)", text: $nickname)
                         .textInputAutocapitalization(.words)
+                }
+
+                if accountType == .creditCard {
+                    BillDatesSection(statementDay: $statementDay, dueDay: $dueDay)
                 }
 
                 if let card {
@@ -185,12 +193,15 @@ struct CardFormView: View {
         if let card {
             card.bankName = trimmedBank
             card.cardNumber = cleanDigits
-            card.cardLastFour = lastFour
+            // A card saved from Accounts has digits but no full number. Leaving the number empty must not erase them.
+            if !lastFour.isEmpty { card.cardLastFour = lastFour }
             card.expiryDate = trimmedExpiry
             card.cvv = cleanCVV
             card.cardholderName = trimmedCardholder
             card.accountType = accountType
             card.nickname = trimmedNickname
+            card.statementDay = accountType == .creditCard ? statementDay : 0
+            card.dueDay = accountType == .creditCard ? dueDay : 0
         } else {
             let newCard = PaymentCard(
                 bankName: trimmedBank,
@@ -202,8 +213,12 @@ struct CardFormView: View {
                 accountType: accountType,
                 nickname: trimmedNickname
             )
+            newCard.statementDay = accountType == .creditCard ? statementDay : 0
+            newCard.dueDay = accountType == .creditCard ? dueDay : 0
             modelContext.insert(newCard)
         }
+        let context = modelContext
+        Task { await CardBillReminder.reschedule(in: context) }
         dismiss()
     }
 }

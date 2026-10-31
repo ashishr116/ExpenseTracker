@@ -14,6 +14,7 @@ struct AccountsView: View {
     @Query private var loans: [Loan]
     @Query private var repayments: [LoanRepayment]
     @Query private var transfers: [Transfer]
+    @Query private var savedCards: [PaymentCard]
 
     @State private var isAddingAccount = false
     @State private var isAddingTransfer = false
@@ -23,6 +24,12 @@ struct AccountsView: View {
             accounts: accounts, expenses: expenses, incomes: incomes,
             loans: loans, repayments: repayments, transfers: transfers
         )
+    }
+
+    /// The next day this credit card's bill is due, if its dates are set.
+    private func dueDate(of account: Account) -> Date? {
+        guard account.kind == .creditCard, !account.isArchived else { return nil }
+        return savedCards.first { $0.accountUID == account.uid }?.nextDueDate()
     }
 
     private var activeAccounts: [Account] { accounts.filter { !$0.isArchived } }
@@ -45,7 +52,12 @@ struct AccountsView: View {
                                 NavigationLink {
                                     AccountDetailView(account: account)
                                 } label: {
-                                    AccountRow(account: account, balance: ledger.balance(of: account), lent: ledger.lentOutstanding(of: account))
+                                    AccountRow(
+                                        account: account,
+                                        balance: ledger.balance(of: account),
+                                        lent: ledger.lentOutstanding(of: account),
+                                        due: dueDate(of: account)
+                                    )
                                 }
                             }
                         }
@@ -58,7 +70,12 @@ struct AccountsView: View {
                             NavigationLink {
                                 AccountDetailView(account: account)
                             } label: {
-                                AccountRow(account: account, balance: ledger.balance(of: account), lent: ledger.lentOutstanding(of: account))
+                                AccountRow(
+                                        account: account,
+                                        balance: ledger.balance(of: account),
+                                        lent: ledger.lentOutstanding(of: account),
+                                        due: dueDate(of: account)
+                                    )
                             }
                         }
                     }
@@ -156,6 +173,8 @@ private struct AccountRow: View {
     /// For a credit card: what friends still owe on it. The row shows it added to your own amount, as the
     /// card's total. Open the card to see the two apart.
     var lent: Decimal = 0
+    /// For a credit card: when its bill is next due.
+    var due: Date?
 
     var body: some View {
         // What the bank's statement shows: your part plus your friends'.
@@ -176,6 +195,15 @@ private struct AccountRow: View {
                     Text(account.detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                if let due {
+                    // Turns red in the last three days, when a reminder is due.
+                    let days = Calendar.current.dateComponents(
+                        [.day], from: Calendar.current.startOfDay(for: .now), to: Calendar.current.startOfDay(for: due)
+                    ).day ?? 0
+                    Text("Bill due \(due.formatted(.dateTime.day().month(.abbreviated)))")
+                        .font(.caption)
+                        .foregroundStyle(days <= 3 ? Color.red : Color.secondary)
                 }
             }
             // Keep the name on one line when the amounts on the right are wide.

@@ -27,6 +27,10 @@ final class PaymentCard {
     var createdAt: Date
     /// The credit card account this card belongs to, if it came from Accounts. Empty otherwise.
     var accountUID: String = ""
+    /// For a credit card: the day of the month the bill is generated, 1 to 31. 0 means not set.
+    var statementDay: Int = 0
+    /// For a credit card: the day of the month the bill is due, 1 to 31. 0 means not set.
+    var dueDay: Int = 0
 
     init(
         bankName: String,
@@ -108,6 +112,45 @@ final class PaymentCard {
         if !nickname.isEmpty { return nickname }
         let bank = bankName.isEmpty ? accountType.rawValue : bankName
         return cardLastFour.isEmpty ? bank : "\(bank) •••• \(cardLastFour)"
+    }
+
+    // MARK: Bill dates
+
+    /// The due day is set, so reminders can be worked out.
+    var hasDueDate: Bool { accountType == .creditCard && dueDay > 0 }
+
+    /// The next payment due date, today included.
+    func nextDueDate(from now: Date = .now) -> Date? {
+        PaymentCard.nextDate(day: dueDay, from: now)
+    }
+
+    /// The next day the bill is generated, today included.
+    func nextStatementDate(from now: Date = .now) -> Date? {
+        PaymentCard.nextDate(day: statementDay, from: now)
+    }
+
+    /// The next date on or after today that falls on `day` of a month. A day the month doesn't have, such as the
+    /// 31st in April, falls on the month's last day.
+    static func nextDate(day: Int, from now: Date = .now) -> Date? {
+        guard day > 0 else { return nil }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        var month = calendar.monthRange(containing: now).lowerBound
+        for _ in 0..<3 {
+            if let date = date(day: day, inMonth: month), date >= today { return date }
+            guard let next = calendar.date(byAdding: .month, value: 1, to: month) else { return nil }
+            month = next
+        }
+        return nil
+    }
+
+    /// `day` of the month containing `month`, or that month's last day if it is shorter.
+    static func date(day: Int, inMonth month: Date) -> Date? {
+        let calendar = Calendar.current
+        let daysInMonth = calendar.range(of: .day, in: .month, for: month)?.count ?? 28
+        var components = calendar.dateComponents([.year, .month], from: month)
+        components.day = min(max(day, 1), daysInMonth)
+        return calendar.date(from: components)
     }
 
     /// Formatted full card number (e.g. "1234 5678 9012 3456")

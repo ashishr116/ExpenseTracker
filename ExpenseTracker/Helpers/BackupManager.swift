@@ -195,6 +195,9 @@ struct CardDTO: Codable {
     var createdAt: Date
     /// Missing in backups made before cards were linked to accounts.
     var accountUID: String?
+    /// Missing in backups made before credit cards had bill dates.
+    var statementDay: Int?
+    var dueDay: Int?
 }
 
 struct TransferDTO: Codable {
@@ -353,7 +356,7 @@ enum BackupManager {
             CardDTO(
                 bankName: $0.bankName, cardLastFour: $0.cardLastFour, cardholderName: $0.cardholderName,
                 accountTypeRaw: $0.accountTypeRaw, nickname: $0.nickname, createdAt: $0.createdAt,
-                accountUID: $0.accountUID
+                accountUID: $0.accountUID, statementDay: $0.statementDay, dueDay: $0.dueDay
             )
         }
         file.transfers = transfers.map { transfer in
@@ -524,6 +527,8 @@ enum BackupManager {
                 nickname: dto.nickname, createdAt: dto.createdAt
             )
             card.accountUID = dto.accountUID ?? ""
+            card.statementDay = dto.statementDay ?? 0
+            card.dueDay = dto.dueDay ?? 0
             context.insert(card)
         }
 

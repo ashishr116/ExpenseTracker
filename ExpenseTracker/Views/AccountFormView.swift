@@ -20,6 +20,11 @@ struct AccountFormView: View {
     @State private var openingBalance: Decimal?
     @State private var openingDate: Date
     @State private var isArchived: Bool
+    /// For a credit card: the bill dates. They are kept on the card's saved card.
+    @State private var statementDay = 0
+    @State private var dueDay = 0
+    @State private var hasLoadedBillDates = false
+    @Query private var savedCards: [PaymentCard]
 
     /// - Parameter kind: The type to start with when adding a new account.
     init(account: Account? = nil, kind: AccountKind = .bank) {
@@ -92,6 +97,10 @@ struct AccountFormView: View {
                          : "Enter the real figure from your bank or statement. Only entries on or after this date change the balance, so older ones aren't counted twice.")
                 }
 
+                if kind == .creditCard {
+                    BillDatesSection(statementDay: $statementDay, dueDay: $dueDay)
+                }
+
                 if account != nil {
                     Section {
                         Toggle("Closed Account", isOn: $isArchived)
@@ -102,6 +111,14 @@ struct AccountFormView: View {
             }
             .navigationTitle(account == nil ? "Add Account" : "Edit Account")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                // Show the dates already saved on this card, once.
+                guard !hasLoadedBillDates, let account,
+                      let card = savedCards.first(where: { $0.accountUID == account.uid }) else { return }
+                hasLoadedBillDates = true
+                statementDay = card.statementDay
+                dueDay = card.dueDay
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -157,6 +174,7 @@ struct AccountFormView: View {
             account.openingDate = openingDate
             account.isArchived = isArchived
             CardSync.sync(in: modelContext, editing: account)
+            saveBillDates(for: account)
         } else {
             let newAccount = Account(
                 name: trimmedName,
@@ -169,8 +187,20 @@ struct AccountFormView: View {
             modelContext.insert(newAccount)
             // A credit card also becomes a saved card, so it can be chosen when adding an expense.
             CardSync.sync(in: modelContext, editing: newAccount)
+            saveBillDates(for: newAccount)
         }
         dismiss()
+    }
+
+    /// Stores the bill dates on the account's saved card, then refreshes the reminders that depend on them.
+    private func saveBillDates(for account: Account) {
+        if account.kind == .creditCard,
+           let card = (try? modelContext.fetch(FetchDescriptor<PaymentCard>()))?.first(where: { $0.accountUID == account.uid }) {
+            card.statementDay = statementDay
+            card.dueDay = dueDay
+        }
+        let context = modelContext
+        Task { await CardBillReminder.reschedule(in: context) }
     }
 }
 

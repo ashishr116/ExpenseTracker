@@ -26,6 +26,7 @@
 - **`PortfolioView.swift`**: net worth: investments, savings, debts, accounts, money friends owe you, and EMIs still to pay.
 - **`AccountsView.swift`**: all accounts with balances and totals. Also the line row used in account histories and the screen for entries not linked to any account.
 - **`AccountDetailView.swift`**: one account's movements with running balances, Pay Bill, and the screen for matching your real balance. For a credit card, splits mine from lent to friends.
+- **`BillDatesSection.swift`**: the "bill generated on" and "payment due on" pickers, shared by the Accounts form and the Saved Cards form.
 - **`CardsView.swift`**: saved cards, masked until you unlock with Face ID.
 - **`MoreView.swift`**: the More tab, linking to everything else.
 

@@ -20,6 +20,7 @@ Built with SwiftUI and SwiftData. Requires the iOS version set in the Xcode proj
 | **Goals** | Save up for something you want to buy. Say what it costs and what you can spare each month, or the date you want it by, and the app works out the other. The monthly amount is set aside from what is left over at month end. The money stays in your savings and is only marked for the goal. |
 | **Net worth** | Investments, savings and debts, plus what friends owe you. |
 | **Saved Cards** | Card details behind Face ID. |
+| **Credit card bills** | Set the day each credit card's bill is generated and the day it is due. The card's screen shows the next dates and each friend's share, with a button to remind them by message or WhatsApp. You also get a notification 3 days and 1 day before the due date, saying who to remind. |
 | **Backup** | CSV export for spreadsheets, and a full JSON backup that can be saved to iCloud Drive and restored. |
 | **Reminders** | Local notifications before, on and after each EMI or premium due date. A pop-up on the due date lets you record the payment. |
 

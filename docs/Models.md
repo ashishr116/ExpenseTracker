@@ -45,6 +45,9 @@ SwiftData records saved on the device. Money is stored as whole paise and read b
 ## `PaymentCard.swift`
 `PaymentCard`: a saved card with optional full number, expiry and CVV, shown only after Face ID. The full details are stored in the Keychain (see `CardVault`), and the database holds only the last four digits and an id that points to them. Cards saved by earlier versions are moved to the Keychain on the next launch.
 
+## Credit card bill dates
+Kept on `PaymentCard` (`statementDay` and `dueDay`, 0 when not set), so the Accounts form and the Saved Cards form edit the same two values. `nextDueDate` and `nextStatementDate` work out the next date, treating a day a month doesn't have as that month's last day.
+
 ## `MonthlySavings.swift`
 - `MonthlySavings`: one record per finished month, noting the leftover and how much was moved to savings.
 - `SavingsSweep`: moves each finished month's leftover into the chosen savings account, as a transfer when accounts exist, or into a savings holding otherwise.

@@ -19,7 +19,9 @@ import UserNotifications
 enum PaymentReminder {
     private static let identifierPrefix = "due-"
     /// iOS keeps at most 64 pending local notifications per app.
-    private static let maximumScheduled = 60
+    /// iOS keeps at most 64 notifications waiting. This leaves room for the monthly recap, card bill reminders
+    /// and budget notices.
+    private static let maximumScheduled = 50
     /// Reminders go out at 9am.
     private static let reminderHour = 9
     private static let overdueFollowUpDays = [1, 3, 7]

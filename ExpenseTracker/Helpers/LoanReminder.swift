@@ -11,12 +11,21 @@ enum ReminderChannel {
     case whatsApp
 }
 
+/// A credit card bill that is coming due, for a reminder that is about the bill and not just the money owed.
+struct CardBillDue {
+    /// How the card is named in the message, e.g. "HDFC Bank credit card". No digits, for privacy.
+    let cardName: String
+    let date: Date
+}
+
 /// A ready-to-send payment reminder for one friend.
 struct LoanReminder: Identifiable {
     let friendName: String
     /// Recipient number; empty if unknown (the person can type it in Messages).
     let phone: String
     let loans: [Loan]
+    /// Set when the reminder is about a card bill that is due soon.
+    var billDue: CardBillDue?
 
     var id: String { friendName.lowercased() }
 
@@ -114,7 +123,10 @@ struct LoanReminder: Identifiable {
         }
 
         let intro: String
-        if isAllInstalments {
+        if let billDue {
+            let date = billDue.date.formatted(.dateTime.day().month(.wide).year())
+            intro = "Hi \(friendName), a reminder that my \(billDue.cardName) bill is due on \(date). Your part of it:"
+        } else if isAllInstalments {
             intro = loans.count == 1
                 ? "Hi \(friendName), a friendly reminder that your EMI is due:"
                 : "Hi \(friendName), a friendly reminder that your EMIs are due:"
@@ -136,7 +148,8 @@ struct LoanReminder: Identifiable {
     }
 
     private var closing: String {
-        isAllInstalments
+        if billDue != nil { return "Please pay it to the card before the due date. Thanks!" }
+        return isAllInstalments
             ? "Please pay the EMI when it's due each month. Thanks!"
             : "Please repay when you can. Thanks!"
     }

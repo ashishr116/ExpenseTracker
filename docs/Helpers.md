@@ -29,6 +29,10 @@ Remembers your monthly salary, day and bank, and adds it to income each month, u
 ## `DataMigrations.swift`
 One-off upgrades for data saved by earlier versions. Safe to run on every launch.
 
+## `CardBill.swift`
+- `CardBill.friendShares`: works out what each friend owes towards a credit card's bill, using the EMI for an instalment loan and the amount still owed for any other loan.
+- `CardBillReminder`: schedules notifications 3 days and 1 day before each credit card's next two due dates, saying which friends to remind. It rebuilds them whenever the app opens or a card changes.
+
 ## `MonthlyRecap.swift`
 Works out a month's recap: income, spending, what was kept, the comparison with the month before, the top three categories, the biggest expense, the category that rose most, fixed vs variable spending, limits that were exceeded, money set aside for goals, the daily average and no-spend days. Also writes a one-paragraph summary, used when sharing the recap and read aloud by VoiceOver in place of the chart. `RecapReminder` schedules the notification on the 1st of each month.
 

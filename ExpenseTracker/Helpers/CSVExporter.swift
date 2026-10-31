@@ -239,9 +239,15 @@ enum CSVExporter {
         tables.append(savingsTable)
 
         // Saved cards: names and last four digits only.
-        var cardTable = Table(fileName: "saved_cards.csv", header: ["Bank", "Type", "Last 4", "Nickname"])
+        var cardTable = Table(
+            fileName: "saved_cards.csv",
+            header: ["Bank", "Type", "Last 4", "Nickname", "Bill Generated Day", "Payment Due Day"]
+        )
         for card in try all(PaymentCard.self).sorted(by: { $0.createdAt < $1.createdAt }) {
-            cardTable.rows.append([text(card.bankName), card.accountTypeRaw, card.cardLastFour, text(card.nickname)])
+            cardTable.rows.append([
+                text(card.bankName), card.accountTypeRaw, card.cardLastFour, text(card.nickname),
+                card.statementDay > 0 ? String(card.statementDay) : "", card.dueDay > 0 ? String(card.dueDay) : ""
+            ])
         }
         tables.append(cardTable)
 

@@ -1,0 +1,125 @@
+//
+//  CardBill.swift
+//  ExpenseTracker
+//
+
+import Foundation
+import SwiftData
+import UserNotifications
+import os
+
+/// What one friend owes towards a credit card's bill.
+struct CardBillShare: Identifiable {
+    let friendName: String
+    let phone: String
+    /// The friend's open loans on this card.
+    let loans: [Loan]
+    /// What to ask for now: the EMI for an instalment loan, and what is still owed for any other loan.
+    let amount: Decimal
+
+    var id: String { friendName.lowercased() }
+}
+
+enum CardBill {
+    /// Friends who still owe something on this card, biggest amount first.
+    ///
+    /// A loan is on the card when the bank matches and, if the card has digits, those match too. This is how
+    /// the account ledger finds a card's loans.
+    static func friendShares(bankName: String, lastFour: String, loans: [Loan]) -> [CardBillShare] {
+        func sameBank(_ a: String, _ b: String) -> Bool {
+            let a = a.trimmingCharacters(in: .whitespaces)
+            return !a.isEmpty && a.caseInsensitiveCompare(b.trimmingCharacters(in: .whitespaces)) == .orderedSame
+        }
+
+        let onCard = loans.filter { loan in
+            loan.method == .card && !loan.isRepaid && loan.outstandingAmount > 0
+                && sameBank(loan.bankName, bankName)
+                && (lastFour.isEmpty || loan.cardLastFour == lastFour)
+        }
+
+        return Dictionary(grouping: onCard) { $0.friendName.trimmingCharacters(in: .whitespaces).lowercased() }
+            .values
+            .compactMap { group -> CardBillShare? in
+                guard let first = group.first else { return nil }
+                let amount = group.reduce(Decimal(0)) { $0 + ($1.isInstalmentLoan ? $1.emiDueAmount : $1.outstandingAmount) }
+                // The most recently saved number for this friend.
+                let phone = group.sorted { $0.date > $1.date }
+                    .map { $0.friendPhone.trimmingCharacters(in: .whitespaces) }
+                    .first { !$0.isEmpty } ?? ""
+                return CardBillShare(friendName: first.friendName, phone: phone, loans: group, amount: amount)
+            }
+            .sorted { $0.amount > $1.amount }
+    }
+}
+
+/// Notifications before a credit card's bill is due, telling you which friends to remind.
+///
+/// An iPhone app can't send a message by itself. The notification tells you who to remind, and the card's
+/// screen has a button for each friend that opens a message or WhatsApp with the words already written.
+enum CardBillReminder {
+    private static let prefix = "cardbill-"
+    /// How many days before the due date to remind.
+    private static let daysBefore = [3, 1]
+    /// How many due dates ahead to schedule. They are rebuilt every time the app opens.
+    private static let dueDatesAhead = 2
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ExpenseTracker", category: "CardBillReminder")
+
+    /// Replaces the scheduled bill reminders with ones for the cards as they are now.
+    @MainActor
+    static func reschedule(in context: ModelContext, now: Date = .now) async {
+        let center = UNUserNotificationCenter.current()
+        let pending = await center.pendingNotificationRequests()
+        center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix(prefix) })
+
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+            log.info("Card bill reminders skipped: notifications are not allowed")
+            return
+        }
+
+        let cards = ((try? context.fetch(FetchDescriptor<PaymentCard>())) ?? []).filter(\.hasDueDate)
+        guard !cards.isEmpty else { return }
+        var count = 0
+        defer { log.info("Scheduled \(count) card bill reminders for \(cards.count) card(s)") }
+        let loans = (try? context.fetch(FetchDescriptor<Loan>())) ?? []
+        let calendar = Calendar.current
+
+        for card in cards {
+            let shares = CardBill.friendShares(bankName: card.bankName, lastFour: card.cardLastFour, loans: loans)
+            var due = card.nextDueDate(from: now)
+            var scheduled = 0
+
+            while let dueDate = due, scheduled < dueDatesAhead {
+                for offset in daysBefore {
+                    guard let day = calendar.date(byAdding: .day, value: -offset, to: dueDate),
+                          let fire = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: day),
+                          fire > now else { continue }
+
+                    let content = UNMutableNotificationContent()
+                    let name = card.displayName
+                    let dueText = dueDate.formatted(.dateTime.day().month(.abbreviated))
+                    content.title = "\(name) bill is due \(offset == 1 ? "tomorrow" : "in \(offset) days")"
+                    if shares.isEmpty {
+                        content.body = "Pay your bill by \(dueText) to avoid late charges."
+                    } else {
+                        let total = shares.reduce(Decimal(0)) { $0 + $1.amount }
+                        let names = shares.map(\.friendName).formatted(.list(type: .and))
+                        content.body = "Due \(dueText). Remind \(names) to pay their \(total.formatted(.rupees)). Open the card in Accounts to send reminders."
+                    }
+                    content.sound = .default
+
+                    let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
+                    let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+                    let key = dueDate.formatted(.iso8601.year().month().day())
+                    let id = "\(prefix)\(abs(card.persistentModelID.hashValue))-\(key)-\(offset)"
+                    try? await center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+                    count += 1
+                }
+                scheduled += 1
+                // The following month's due date.
+                let monthStart = calendar.monthRange(containing: dueDate).upperBound
+                due = PaymentCard.date(day: card.dueDay, inMonth: monthStart)
+            }
+        }
+    }
+}
