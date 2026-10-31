@@ -314,20 +314,7 @@ private struct MonthlyExpenseList: View {
                 // What left your cash, then the credit card purchases, which are shown but not counted in Spent.
                 splitRow("Via UPI, Cash & Debit", cash.cashSpent, color: .primary)
                 splitRow("Credit Card Bills Paid", cash.billsPaid, color: .primary)
-                LabeledContent {
-                    Text(cash.cardSpent, format: .rupees)
-                        .foregroundStyle(.orange)
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Credit Card Expenses")
-                            .foregroundStyle(.secondary)
-                        Text("Not in Spent until you pay the bill")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .font(.subheadline)
-                .padding(.leading, 16)
+                splitRow("Credit Card Expenses", cash.cardSpent, color: .orange)
             }
             if pending > 0 {
                 LabeledContent("Pending EMIs & Premiums") {
