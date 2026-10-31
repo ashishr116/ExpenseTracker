@@ -79,6 +79,8 @@ private struct MonthlyExpenseList: View {
 
     @State private var editingIncome: Income?
     @State private var editingExpense: Expense?
+    /// Whether the credit card figures inside Balance are showing. Closed to begin with, so the summary stays short.
+    @State private var isBalanceExpanded = false
 
     init(month: Date) {
         let range = Calendar.current.monthRange(containing: month)
@@ -235,6 +237,14 @@ private struct MonthlyExpenseList: View {
         }
     }
 
+    private func balanceRow(_ balance: Decimal) -> some View {
+        LabeledContent("Balance") {
+            Text(balance, format: .rupees)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(balance >= 0 ? .green : .red)
+        }
+    }
+
     private var summarySection: some View {
         let income = incomes.totalAmount
         let spent = expenses.spentAmount
@@ -243,6 +253,10 @@ private struct MonthlyExpenseList: View {
         let repaid = cashRepayments.totalAmount
         // Money lent leaves your account this month; repayments come back in.
         let balance = income - spent - lent + repaid
+        // Credit card spending isn't taken from cash until the bill is paid. Shown only when a card was used.
+        let cash = MonthCashView(
+            income: income, expenses: expenses, cardPayments: transfers, cashLent: lent, cashRepaid: repaid
+        )
 
         return Section {
             LabeledContent("Income") {
@@ -276,35 +290,36 @@ private struct MonthlyExpenseList: View {
                         .fontWeight(.semibold)
                 }
             }
-            LabeledContent("Balance") {
-                Text(balance, format: .rupees)
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(balance >= 0 ? .green : .red)
+            if cash.hasCardActivity {
+                // The credit card figures belong to Balance, so they sit inside it and open when it is tapped.
+                DisclosureGroup(isExpanded: $isBalanceExpanded) {
+                    LabeledContent("On Credit Cards") {
+                        Text(cash.cardSpent, format: .rupees)
+                            .foregroundStyle(.orange)
+                            .fontWeight(.semibold)
+                    }
+                    LabeledContent("Card Bills Paid") {
+                        Text(cash.billsPaid, format: .rupees)
+                    }
+                    LabeledContent("Cash Left") {
+                        Text(cash.cashLeft, format: .rupees)
+                            .font(.body.weight(.bold))
+                            .foregroundStyle(cash.cashLeft >= 0 ? .green : .red)
+                    }
+                    Text("Credit card spending comes out of cash only when you pay the bill.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } label: {
+                    balanceRow(balance)
+                }
+            } else {
+                balanceRow(balance)
             }
             if pending > 0 {
                 LabeledContent("Left After Pending") {
                     Text(balance - pending, format: .rupees)
                         .fontWeight(.semibold)
                         .foregroundStyle(balance - pending >= 0 ? .green : .red)
-                }
-            }
-            // Credit card spending isn't taken from cash until the bill is paid. Shown only when a card was used.
-            let cash = MonthCashView(
-                income: income, expenses: expenses, cardPayments: transfers, cashLent: lent, cashRepaid: repaid
-            )
-            if cash.hasCardActivity {
-                LabeledContent("On Credit Cards") {
-                    Text(cash.cardSpent, format: .rupees)
-                        .foregroundStyle(.orange)
-                        .fontWeight(.semibold)
-                }
-                LabeledContent("Card Bills Paid") {
-                    Text(cash.billsPaid, format: .rupees)
-                }
-                LabeledContent("Cash Left") {
-                    Text(cash.cashLeft, format: .rupees)
-                        .font(.body.weight(.bold))
-                        .foregroundStyle(cash.cashLeft >= 0 ? .green : .red)
                 }
             }
             LabeledContent(
