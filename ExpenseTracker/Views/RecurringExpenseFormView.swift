@@ -11,10 +11,6 @@ struct RecurringExpenseFormView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    /// Cards you have saved, so a card payment uses the same bank and digits as the card's account.
-    @Query(sort: \PaymentCard.createdAt, order: .reverse) private var storedCards: [PaymentCard]
-    @Query(sort: \Account.createdAt) private var accounts: [Account]
-
     let plan: RecurringExpense?
 
     @State private var title: String
@@ -55,15 +51,6 @@ struct RecurringExpenseFormView: View {
     /// The first payment this plan will add, so it's clear whether anything is added right away.
     private var firstPayment: Date? {
         RecurringExpense.firstDue(day: day, startingFrom: startDate)
-    }
-
-    /// Banks of your open bank accounts, one entry per bank.
-    private var bankChoices: [String] {
-        var seen = Set<String>()
-        return accounts
-            .filter { $0.kind == .bank && !$0.isArchived && !$0.bankName.isEmpty }
-            .map(\.bankName)
-            .filter { seen.insert($0.lowercased()).inserted }
     }
 
     var body: some View {
@@ -111,7 +98,7 @@ struct RecurringExpenseFormView: View {
                                 .tag(type)
                         }
                     }
-                    paymentDetails
+                    PaymentSourceFields(accountType: accountType, bankName: $bankName, cardLastFour: $cardLastFour)
                 } header: {
                     Text("Paid From")
                 } footer: {
@@ -139,61 +126,6 @@ struct RecurringExpenseFormView: View {
                         .disabled(!isValid)
                 }
             }
-        }
-    }
-
-    @ViewBuilder
-    private var paymentDetails: some View {
-        if accountType.usesCard {
-            let cards = storedCards.filter { $0.accountType == accountType }
-            if !cards.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack {
-                        ForEach(cards) { card in
-                            Button(card.displayName, systemImage: card.accountType.systemImage) {
-                                bankName = card.bankName
-                                cardLastFour = card.cardLastFour
-                            }
-                            .buttonStyle(.bordered)
-                            .buttonBorderShape(.capsule)
-                            .controlSize(.small)
-                        }
-                    }
-                }
-            }
-        }
-        if accountType.usesBank {
-            TextField("Bank Name (e.g. HDFC Bank)", text: $bankName)
-                .textInputAutocapitalization(.words)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(bankChoices + PopularBank.names.filter { name in
-                        !bankChoices.contains { $0.caseInsensitiveCompare(name) == .orderedSame }
-                    }, id: \.self) { bank in
-                        let isSelected = trimmedBank.caseInsensitiveCompare(bank) == .orderedSame
-                        Button {
-                            bankName = bank
-                        } label: {
-                            Text(bank)
-                                .font(.caption)
-                                .fontWeight(isSelected ? .semibold : .regular)
-                                .foregroundStyle(isSelected ? .white : .primary)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(isSelected ? Color.accentColor : Color(.secondarySystemFill), in: .capsule)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-        if accountType.usesCard {
-            TextField("Card No. (last 4 digits)", text: $cardLastFour)
-                .keyboardType(.numberPad)
-                .onChange(of: cardLastFour) { _, newValue in
-                    let digits = String(newValue.filter(\.isNumber).prefix(4))
-                    if digits != newValue { cardLastFour = digits }
-                }
         }
     }
 

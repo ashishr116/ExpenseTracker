@@ -31,6 +31,9 @@
 - **`CardsView.swift`**: saved cards, masked until you unlock with Face ID.
 - **`MoreView.swift`**: the More tab, linking to everything else.
 
+## Shared pieces
+- **`PaymentSourceFields.swift`**: the bank and card fields for choosing where a payment comes from, with your saved cards and banks as one-tap chips. Used by the insurance form and the recurring expense form.
+
 ## Recurring expenses
 - **`RecurringExpensesView.swift`**: your monthly payments with the total per month, each one's next payment day, and swipe to delete.
 - **`RecurringExpenseFormView.swift`**: add or edit a monthly payment, with a preview of when the first one is added, an optional end date, and a pause switch.
