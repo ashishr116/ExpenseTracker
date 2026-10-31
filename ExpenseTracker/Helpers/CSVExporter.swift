@@ -79,7 +79,8 @@ enum CSVExporter {
         let transfers = try all(Transfer.self).sorted { $0.date < $1.date }
         let ledger = AccountLedger(
             accounts: accounts, expenses: expenses, incomes: incomes,
-            loans: loans, repayments: repayments, transfers: transfers
+            loans: loans, repayments: repayments, transfers: transfers,
+            borrowings: try all(Borrowing.self), borrowingPayments: try all(BorrowingPayment.self)
         )
 
         var tables: [Table] = []

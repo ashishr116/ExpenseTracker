@@ -21,6 +21,8 @@ struct PortfolioView: View {
     @Query private var allLoans: [Loan]
     @Query private var repayments: [LoanRepayment]
     @Query private var transfers: [Transfer]
+    @Query private var borrowings: [Borrowing]
+    @Query private var borrowingPayments: [BorrowingPayment]
 
     @State private var isAddingHolding = false
     @State private var editingHolding: Holding?
@@ -41,7 +43,8 @@ struct PortfolioView: View {
     private var ledger: AccountLedger {
         AccountLedger(
             accounts: accounts, expenses: expenses, incomes: incomes,
-            loans: allLoans, repayments: repayments, transfers: transfers
+            loans: allLoans, repayments: repayments, transfers: transfers,
+            borrowings: borrowings, borrowingPayments: borrowingPayments
         )
     }
     /// Bank and cash balances, worked out from your entries.
@@ -63,7 +66,10 @@ struct PortfolioView: View {
     }
 
     private var totalAssets: Decimal { assets.totalValue + owedToYou + accountAssets }
-    private var totalDebt: Decimal { debts.totalValue + emiRemaining + cardDues }
+    /// Money borrowed from friends that you still have to pay back.
+    private var owedToFriends: Decimal { borrowings.filter { !$0.isRepaid }.outstandingTotal }
+
+    private var totalDebt: Decimal { debts.totalValue + emiRemaining + cardDues + owedToFriends }
     private var netWorth: Decimal { totalAssets - totalDebt }
 
     /// Holdings with an invested amount, used for overall returns.
@@ -102,7 +108,7 @@ struct PortfolioView: View {
                         holdingSection(group.kind, items: group.items)
                     }
 
-                    if owedToYou > 0 || emiRemaining > 0 {
+                    if owedToYou > 0 || emiRemaining > 0 || owedToFriends > 0 {
                         appDataSection
                     }
                 }
@@ -222,6 +228,14 @@ struct PortfolioView: View {
                     Label("Owed to You by Friends", systemImage: "person.2.circle")
                 }
             }
+            if owedToFriends > 0 {
+                LabeledContent {
+                    Text(owedToFriends, format: .rupees)
+                        .foregroundStyle(.red)
+                } label: {
+                    Label("You Owe Friends", systemImage: "person.2.slash")
+                }
+            }
             if emiRemaining > 0 {
                 LabeledContent {
                     Text(emiRemaining, format: .rupees)
@@ -231,7 +245,7 @@ struct PortfolioView: View {
                 }
             }
         } header: {
-            Text("From Loans & EMIs")
+            Text("From Loans, Borrowed & EMIs")
         } footer: {
             Text(mayDoubleCountLoans
                  ? "Included automatically: cash you lent to friends counts as an asset (loans on your card are left out), and the principal left on EMIs counts as debt. You also track loans above, so if one is also an EMI, turn off \"Count in Net Worth Debt\" on that EMI to avoid counting it twice."

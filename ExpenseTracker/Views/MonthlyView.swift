@@ -91,6 +91,10 @@ private struct MonthlyExpenseList: View {
 
     private var cashRepayments: [LoanRepayment] { repayments.filter(\.isCashInflow) }
 
+    /// Money borrowed from friends this month, and payments made back to them this month.
+    @Query private var borrowed: [Borrowing]
+    @Query private var borrowPayments: [BorrowingPayment]
+
     /// Transfers made this month. Only card bill payments are listed.
     @Query private var transfers: [Transfer]
 
@@ -110,6 +114,8 @@ private struct MonthlyExpenseList: View {
         let cashMethod = LoanMethod.cash.rawValue
         _loansLent = Query(filter: #Predicate<Loan> { $0.date >= start && $0.date < end && $0.methodRaw == cashMethod })
         _repayments = Query(filter: #Predicate<LoanRepayment> { $0.date >= start && $0.date < end })
+        _borrowed = Query(filter: #Predicate<Borrowing> { $0.date >= start && $0.date < end })
+        _borrowPayments = Query(filter: #Predicate<BorrowingPayment> { $0.date >= start && $0.date < end })
         _transfers = Query(filter: #Predicate<Transfer> { $0.date >= start && $0.date < end })
         _expenses = Query(
             filter: #Predicate<Expense> { $0.date >= start && $0.date < end },
@@ -164,7 +170,8 @@ private struct MonthlyExpenseList: View {
 
     var body: some View {
         Group {
-            if expenses.isEmpty && incomes.isEmpty && loansLent.isEmpty && cashRepayments.isEmpty && cardPayments.isEmpty {
+            if expenses.isEmpty && incomes.isEmpty && loansLent.isEmpty && cashRepayments.isEmpty && cardPayments.isEmpty
+                && borrowed.isEmpty && borrowPayments.isEmpty {
                 ContentUnavailableView(
                     "Nothing This Month",
                     systemImage: "calendar",
@@ -289,11 +296,15 @@ private struct MonthlyExpenseList: View {
         let pending = expenses.plannedAmount
         let lent = loansLent.totalAmount
         let repaid = cashRepayments.totalAmount
-        // Money lent leaves your account this month; repayments come back in.
-        let balance = income - spent - lent + repaid
+        let borrowedIn = borrowed.reduce(Decimal(0)) { $0 + $1.amount }
+        let paidBack = borrowPayments.totalAmount
+        // Money lent leaves your account this month; repayments come back in. Borrowed money comes in, and
+        // paying it back goes out.
+        let balance = income - spent - lent + repaid + borrowedIn - paidBack
         // Credit card spending isn't taken from cash until the bill is paid. Shown only when a card was used.
         let cash = MonthCashView(
-            income: income, expenses: expenses, cardPayments: transfers, cashLent: lent, cashRepaid: repaid
+            income: income, expenses: expenses, cardPayments: transfers, cashLent: lent, cashRepaid: repaid,
+            borrowed: borrowedIn, paidBack: paidBack
         )
         // When a card was used, the main figures count what left your cash. Credit card purchases wait for the bill.
         let usesCash = cash.hasCardActivity
@@ -334,6 +345,20 @@ private struct MonthlyExpenseList: View {
                 LabeledContent("Repaid to You") {
                     Text(repaid, format: .rupees)
                         .foregroundStyle(.green)
+                        .fontWeight(.semibold)
+                }
+            }
+            if borrowedIn > 0 {
+                LabeledContent("Borrowed from Friends") {
+                    Text(borrowedIn, format: .rupees)
+                        .foregroundStyle(.green)
+                        .fontWeight(.semibold)
+                }
+            }
+            if paidBack > 0 {
+                LabeledContent("Repaid to Friends") {
+                    Text(paidBack, format: .rupees)
+                        .foregroundStyle(.orange)
                         .fontWeight(.semibold)
                 }
             }

@@ -22,6 +22,7 @@
 
 ## Lists and detail screens
 - **`LoansView.swift`**: loans grouped by friend, outstanding and repaid, with swipe actions and the reminder flow. Each friend has a green + that opens a new loan with their name and number already filled in.
+- **`BorrowedView.swift`**: money borrowed from friends: what you still owe, the add and edit form, one debt's detail with its payments, and the sheet for paying part of it back.
 - **`EMIsView.swift`**: EMI plans with progress and what is left to pay.
 - **`InsuranceView.swift`**: insurance plans with premiums and upcoming dues.
 - **`PortfolioView.swift`**: net worth: investments, savings, debts, accounts, money friends owe you, and EMIs still to pay.

@@ -10,6 +10,7 @@ import SwiftData
 struct MoreView: View {
     @Query(filter: #Predicate<Loan> { $0.repaidDate == nil })
     private var outstandingLoans: [Loan]
+    @Query private var borrowings: [Borrowing]
     @Query private var emis: [EMI]
     @Query private var savedCards: [PaymentCard]
     @Query private var monthlySavings: [MonthlySavings]
@@ -190,6 +191,25 @@ struct MoreView: View {
                         }
                     } icon: {
                         Image(systemName: "person.2.circle")
+                    }
+                }
+            }
+
+            NavigationLink {
+                BorrowedView()
+            } label: {
+                LabeledContent {
+                    Text(borrowings.filter { !$0.isRepaid }.outstandingTotal, format: .rupees)
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Borrowed")
+                            Text("Money you owe friends")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "person.2.slash")
                     }
                 }
             }

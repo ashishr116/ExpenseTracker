@@ -45,7 +45,9 @@ struct MonthCashView {
         expenses: [Expense],
         cardPayments: [Transfer],
         cashLent: Decimal,
-        cashRepaid: Decimal
+        cashRepaid: Decimal,
+        borrowed: Decimal = 0,
+        paidBack: Decimal = 0
     ) {
         let paid = expenses.filter { !$0.isPlanned }
         let onCards = paid.filter { $0.accountType == .creditCard }
@@ -53,7 +55,7 @@ struct MonthCashView {
         cardSpent = onCards.totalAmount
         cashSpent = paid.totalAmount - cardSpent
         billsPaid = cardPayments.filter(\.isCardBillPayment).reduce(Decimal(0)) { $0 + $1.amount }
-        cashLeft = income - cashSpent - billsPaid - cashLent + cashRepaid
+        cashLeft = income - cashSpent - billsPaid - cashLent + cashRepaid + borrowed - paidBack
 
         cards = Dictionary(grouping: onCards) { "\($0.bankName)|\($0.cardLastFour)" }
             .map { key, items in

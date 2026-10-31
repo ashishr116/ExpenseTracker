@@ -151,6 +151,8 @@ enum CardBillReminder {
             loans: loans,
             repayments: (try? context.fetch(FetchDescriptor<LoanRepayment>())) ?? [],
             transfers: (try? context.fetch(FetchDescriptor<Transfer>())) ?? [],
+            borrowings: (try? context.fetch(FetchDescriptor<Borrowing>())) ?? [],
+            borrowingPayments: (try? context.fetch(FetchDescriptor<BorrowingPayment>())) ?? [],
             now: now
         )
         let accounts = (try? context.fetch(FetchDescriptor<Account>())) ?? []

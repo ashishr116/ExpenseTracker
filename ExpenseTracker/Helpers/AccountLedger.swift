@@ -50,6 +50,8 @@ struct AccountLedger {
         loans: [Loan],
         repayments: [LoanRepayment],
         transfers: [Transfer],
+        borrowings: [Borrowing] = [],
+        borrowingPayments: [BorrowingPayment] = [],
         now: Date = .now
     ) {
         // Active accounts first, so an entry prefers an open account over a closed one.
@@ -149,6 +151,37 @@ struct AccountLedger {
                     title: "Repayment from \(repayment.loan?.friendName ?? "friend")",
                     subtitle: repayment.bankName.isEmpty ? "Cash" : repayment.bankName,
                     effect: repayment.amount,
+                    transfer: nil
+                )
+            ))
+        }
+
+        // Money borrowed from a friend lands in an account, and paying it back takes it out again.
+        for borrowing in borrowings where borrowing.date <= now {
+            let owner = account(forLoanBank: borrowing.bankName)
+            built.append(Entry(
+                accountUID: owner?.uid,
+                line: LedgerLine(
+                    id: "borrowed-\(borrowing.persistentModelID)",
+                    date: borrowing.date,
+                    title: "Borrowed from \(borrowing.friendName)",
+                    subtitle: borrowing.bankName.isEmpty ? "Cash" : borrowing.bankName,
+                    effect: borrowing.amount,
+                    transfer: nil
+                )
+            ))
+        }
+
+        for payment in borrowingPayments where payment.date <= now {
+            let owner = account(forLoanBank: payment.bankName)
+            built.append(Entry(
+                accountUID: owner?.uid,
+                line: LedgerLine(
+                    id: "borrow-payment-\(payment.persistentModelID)",
+                    date: payment.date,
+                    title: "Repaid \(payment.borrowing?.friendName ?? "friend")",
+                    subtitle: payment.bankName.isEmpty ? "Cash" : payment.bankName,
+                    effect: -payment.amount,
                     transfer: nil
                 )
             ))

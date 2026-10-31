@@ -36,6 +36,27 @@ struct BackupFile: Codable {
     var categoryBudgets: [CategoryBudgetDTO]?
     /// Missing in backups made before payment details existed.
     var paymentDetails: PaymentDetailsDTO?
+    /// Missing in backups made before borrowing from friends existed.
+    var borrowings: [BorrowingDTO]?
+}
+
+struct BorrowingDTO: Codable {
+    var amountPaise: Int64
+    var friendName: String
+    var friendPhone: String
+    var note: String
+    var date: Date
+    var bankName: String
+    var dueDate: Date?
+    var repaidDate: Date?
+    var payments: [BorrowingPaymentDTO]
+}
+
+struct BorrowingPaymentDTO: Codable {
+    var amountPaise: Int64
+    var date: Date
+    var note: String
+    var bankName: String
 }
 
 struct PaymentDetailsDTO: Codable {
@@ -407,6 +428,17 @@ enum BackupManager {
             CategoryBudgetDTO(categoryRaw: $0.categoryRaw, limitPaise: $0.limitPaise, createdAt: $0.createdAt)
         }
 
+        file.borrowings = try all(Borrowing.self).map { borrowing in
+            BorrowingDTO(
+                amountPaise: borrowing.amountPaise, friendName: borrowing.friendName,
+                friendPhone: borrowing.friendPhone, note: borrowing.note, date: borrowing.date,
+                bankName: borrowing.bankName, dueDate: borrowing.dueDate, repaidDate: borrowing.repaidDate,
+                payments: borrowing.payments.map {
+                    BorrowingPaymentDTO(amountPaise: $0.amountPaise, date: $0.date, note: $0.note, bankName: $0.bankName)
+                }
+            )
+        }
+
         file.paymentDetails = PaymentDetailsDTO(
             upiID: PaymentDetails.upiID, payeeName: PaymentDetails.payeeName,
             includeCardDigits: PaymentDetails.includesCardDigits
@@ -605,6 +637,24 @@ enum BackupManager {
             context.insert(budget)
         }
 
+        for dto in file.borrowings ?? [] {
+            let borrowing = Borrowing(
+                amount: Money.amount(fromPaise: dto.amountPaise), friendName: dto.friendName,
+                friendPhone: dto.friendPhone, note: dto.note, date: dto.date,
+                bankName: dto.bankName, dueDate: dto.dueDate
+            )
+            borrowing.repaidDate = dto.repaidDate
+            context.insert(borrowing)
+            for paymentDTO in dto.payments {
+                let payment = BorrowingPayment(
+                    amount: Money.amount(fromPaise: paymentDTO.amountPaise), date: paymentDTO.date,
+                    note: paymentDTO.note, bankName: paymentDTO.bankName
+                )
+                context.insert(payment)
+                borrowing.payments.append(payment)
+            }
+        }
+
         // Only a backup that has them replaces the details on this phone.
         if let details = file.paymentDetails {
             let defaults = UserDefaults.standard
@@ -628,6 +678,8 @@ enum BackupManager {
             }
         }
         // Records that point at others first.
+        try deleteAll(BorrowingPayment.self)
+        try deleteAll(Borrowing.self)
         try deleteAll(CategoryBudget.self)
         try deleteAll(RecurringExpense.self)
         try deleteAll(GoalContribution.self)

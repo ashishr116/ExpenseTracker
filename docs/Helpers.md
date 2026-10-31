@@ -5,6 +5,9 @@ Code with no screen of its own.
 ## `AccountLedger.swift`
 Works out each account's balance from the entries. Spending lowers a bank or cash account and raises what a card owes. Income, cash loans, repayments and transfers move balances. Finds entries that match no account. Also tracks what friends owe on each credit card, kept apart from your own balance. An EMI instalment or premium paid by credit card is on the card from its billing date, because the bank bills it whether or not you have marked it paid. Any other EMI or premium moves money when you mark it paid.
 
+## `BorrowingReminder.swift`
+Reminders to you the day before and on the day money you borrowed from a friend is due back. Rebuilt whenever the app opens or a debt changes.
+
 ## `PaymentReminder.swift`
 Schedules local notifications for EMIs and premiums: the day before, on the due date, and again after it is overdue. Also schedules the repeating monthly reminder for a friend's card or personal-loan EMI.
 

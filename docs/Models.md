@@ -21,6 +21,10 @@ SwiftData records saved on the device. Money is stored as whole paise and read b
 ## `InsurancePolicy.swift`
 `InsurancePolicy`: a health or term plan. Works like an EMI: one expense per premium, paid or pending, with due and overdue tracking.
 
+## `Borrowing.swift`
+- `Borrowing`: money borrowed from a friend, the mirror of a loan. It lands in cash or a bank account, can have a promised pay-back date, and is a debt, not income.
+- `BorrowingPayment`: one payment you made back. It comes out of the account you paid from. Part payments are fine.
+
 ## `Loan.swift`
 - `LoanMethod`: cash/transfer, used my card, or personal loan in my name.
 - `Loan`: money lent to a friend. Supports part payments, an instalment count and amount (for a personal loan or a friend's EMI on your card), and a monthly reminder day. On a card, a friend's EMI is billed one instalment a month (`cardCharges`), like the bank's statement, rather than whole.

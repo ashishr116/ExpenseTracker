@@ -23,6 +23,8 @@ struct AccountDetailView: View {
     @Query private var loans: [Loan]
     @Query private var repayments: [LoanRepayment]
     @Query private var transfers: [Transfer]
+    @Query private var borrowings: [Borrowing]
+    @Query private var borrowingPayments: [BorrowingPayment]
     @Query private var savedCards: [PaymentCard]
     @Environment(\.openURL) private var openURL
 
@@ -47,7 +49,8 @@ struct AccountDetailView: View {
     private var ledger: AccountLedger {
         AccountLedger(
             accounts: accounts, expenses: expenses, incomes: incomes,
-            loans: loans, repayments: repayments, transfers: transfers
+            loans: loans, repayments: repayments, transfers: transfers,
+            borrowings: borrowings, borrowingPayments: borrowingPayments
         )
     }
 

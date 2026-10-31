@@ -34,6 +34,8 @@ struct ExpenseTrackerApp: App {
             GoalContribution.self,
             RecurringExpense.self,
             CategoryBudget.self,
+            Borrowing.self,
+            BorrowingPayment.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -91,6 +93,7 @@ private struct RootView: View {
             await BudgetAlerts.check(in: modelContext)
             await RecapReminder.scheduleIfNeeded()
             await CardBillReminder.reschedule(in: modelContext)
+            await BorrowingReminder.reschedule(in: modelContext)
             BackupNudge.recordFirstSeen()
             await BackupNudge.scheduleReminder()
 
@@ -117,6 +120,7 @@ private struct RootView: View {
                     await BudgetAlerts.check(in: modelContext)
                     // Who owes what on a card may have changed since the reminders were set.
                     await CardBillReminder.reschedule(in: modelContext)
+                    await BorrowingReminder.reschedule(in: modelContext)
                 }
                 SavingsSweep.run(in: modelContext)
                 GoalAllocator.run(in: modelContext)
