@@ -76,6 +76,9 @@ private struct BudgetSummaryList: View {
     /// The month's transfers, for the card bills paid.
     @Query private var transfers: [Transfer]
 
+    /// Whether the main figures count what left your cash, or every purchase. See `SpendingBasis`.
+    @AppStorage(SpendingBasis.storageKey) private var basis = SpendingBasis.cash
+
     private var cashRepayments: [LoanRepayment] { repayments.filter(\.isCashInflow) }
 
     /// Cash spending kept apart from credit card spending. See `MonthCashView`.
@@ -121,6 +124,10 @@ private struct BudgetSummaryList: View {
 
     var body: some View {
         List {
+            // The switch is only needed in months where a credit card was used or paid.
+            if cashView.hasCardActivity {
+                SpendingBasisPicker(basis: $basis)
+            }
             summarySection
             cashSection
 
@@ -172,27 +179,30 @@ private struct BudgetSummaryList: View {
     private var cashSection: some View {
         let view = cashView
         if view.hasCardActivity {
-            Section {
-                LabeledContent("Cash Left") {
-                    Text(view.cashLeft, format: .rupees)
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(view.cashLeft >= 0 ? Color.green : Color.red)
+            // In the Cash view these figures are already the main ones above, so only Purchases needs them here.
+            if basis == .purchases {
+                Section {
+                    LabeledContent("Cash Left") {
+                        Text(view.cashLeft, format: .rupees)
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(view.cashLeft >= 0 ? Color.green : Color.red)
+                    }
+                    LabeledContent("Spent in Cash, UPI & Debit") {
+                        Text(view.cashSpent, format: .rupees)
+                    }
+                    LabeledContent("Card Bills Paid") {
+                        Text(view.billsPaid, format: .rupees)
+                    }
+                    LabeledContent("Spent on Credit Cards") {
+                        Text(view.cardSpent, format: .rupees)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.orange)
+                    }
+                } header: {
+                    Text("Cash vs Credit Cards")
+                } footer: {
+                    Text("Cash Left is your income, less what you spent in cash, UPI and on a debit card, less the card bills you paid. Credit card spending comes out of it only when you pay the bill. It still counts as spending above, and in your categories and limits.")
                 }
-                LabeledContent("Spent in Cash, UPI & Debit") {
-                    Text(view.cashSpent, format: .rupees)
-                }
-                LabeledContent("Card Bills Paid") {
-                    Text(view.billsPaid, format: .rupees)
-                }
-                LabeledContent("Spent on Credit Cards") {
-                    Text(view.cardSpent, format: .rupees)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.orange)
-                }
-            } header: {
-                Text("Cash vs Credit Cards")
-            } footer: {
-                Text("Cash Left is your income, less what you spent in cash, UPI and on a debit card, less the card bills you paid. Credit card spending comes out of it only when you pay the bill. It still counts as spending above, and in your categories and limits.")
             }
 
             if !view.cards.isEmpty {
@@ -224,6 +234,11 @@ private struct BudgetSummaryList: View {
         let cashRepaid = cashRepayments.totalAmount
         // A plan should hold back money for EMIs and premiums that are still to be paid.
         let balance = income - spent - pending - loanedOut + cashRepaid
+        // In the Cash view the main figures count what left your cash. Credit card purchases wait for the bill.
+        let cash = cashView
+        let usesCash = basis == .cash && cash.hasCardActivity
+        let cashSpentOut = cash.cashSpent + cash.billsPaid
+        let remaining = usesCash ? cash.cashLeft - pending : balance
 
         return Section {
             if income > 0 {
@@ -235,13 +250,29 @@ private struct BudgetSummaryList: View {
             }
 
             LabeledContent("Total Spent") {
-                Text(spent, format: .rupees)
+                Text(usesCash ? cashSpentOut : spent, format: .rupees)
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.primary)
             }
 
+            if usesCash {
+                LabeledContent("Via UPI, Cash & Debit") {
+                    Text(cash.cashSpent, format: .rupees)
+                        .foregroundStyle(.secondary)
+                }
+                LabeledContent("Card Bills Paid") {
+                    Text(cash.billsPaid, format: .rupees)
+                        .foregroundStyle(.secondary)
+                }
+                LabeledContent("Credit Card Expenses") {
+                    Text(cash.cardSpent, format: .rupees)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.orange)
+                }
+            }
+
             let emiTotal = expenses.filter { $0.emi != nil && !$0.isPlanned }.totalAmount
-            if emiTotal > 0 {
+            if emiTotal > 0, !usesCash {
                 LabeledContent("Includes EMIs") {
                     Text(emiTotal, format: .rupees)
                         .foregroundStyle(.secondary)
@@ -273,10 +304,10 @@ private struct BudgetSummaryList: View {
             }
 
             if income > 0 {
-                LabeledContent("Remaining Budget") {
-                    Text(balance, format: .rupees)
+                LabeledContent(usesCash ? "Cash Left" : "Remaining Budget") {
+                    Text(remaining, format: .rupees)
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(balance >= 0 ? .green : .red)
+                        .foregroundStyle(remaining >= 0 ? .green : .red)
                 }
             }
         }

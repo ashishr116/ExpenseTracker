@@ -81,6 +81,8 @@ private struct MonthlyExpenseList: View {
     @State private var editingExpense: Expense?
     /// Whether the credit card figures inside Balance are showing. Closed to begin with, so the summary stays short.
     @State private var isBalanceExpanded = false
+    /// Whether the main figures count what left your cash, or every purchase. See `SpendingBasis`.
+    @AppStorage(SpendingBasis.storageKey) private var basis = SpendingBasis.cash
 
     init(month: Date) {
         let range = Calendar.current.monthRange(containing: month)
@@ -164,7 +166,7 @@ private struct MonthlyExpenseList: View {
 
     private var list: some View {
         List {
-            summarySection
+            summaryGroup
 
             if !dayGroups.isEmpty {
                 Section("Transactions") {
@@ -261,6 +263,17 @@ private struct MonthlyExpenseList: View {
         .font(.subheadline)
     }
 
+    /// A note under the sum behind Balance in the Cash view: what is still to come out for card spending.
+    private func cashViewNote(cardSpent: Decimal, billsPaid: Decimal) -> String {
+        let gap = cardSpent - billsPaid
+        if gap > 0 {
+            return "\(gap.formatted(.rupees)) of this month's card spending isn't paid yet. It comes out of Balance when you pay the bill."
+        } else if gap < 0 {
+            return "Includes \((-gap).formatted(.rupees)) of card bills from earlier months."
+        }
+        return "This month's card spending has all been paid."
+    }
+
     /// Why Balance and Cash Left differ: card spending counts as spent when you buy, and as cash only when you pay.
     private func gapExplanation(cardSpent: Decimal, billsPaid: Decimal) -> String {
         let gap = cardSpent - billsPaid
@@ -280,6 +293,20 @@ private struct MonthlyExpenseList: View {
         }
     }
 
+    /// The Cash | Purchases switch, when a credit card was used this month, above the summary.
+    private var summaryGroup: some View {
+        let hasCardActivity = MonthCashView(
+            income: incomes.totalAmount, expenses: expenses, cardPayments: transfers,
+            cashLent: loansLent.totalAmount, cashRepaid: cashRepayments.totalAmount
+        ).hasCardActivity
+        return Group {
+            if hasCardActivity {
+                SpendingBasisPicker(basis: $basis)
+            }
+            summarySection
+        }
+    }
+
     private var summarySection: some View {
         let income = incomes.totalAmount
         let spent = expenses.spentAmount
@@ -292,6 +319,9 @@ private struct MonthlyExpenseList: View {
         let cash = MonthCashView(
             income: income, expenses: expenses, cardPayments: transfers, cashLent: lent, cashRepaid: repaid
         )
+        // In the Cash view the main figures count what left your cash. Credit card purchases wait for the bill.
+        let usesCash = basis == .cash && cash.hasCardActivity
+        let shownBalance = usesCash ? cash.cashLeft : balance
 
         return Section {
             LabeledContent("Income") {
@@ -300,12 +330,28 @@ private struct MonthlyExpenseList: View {
                     .fontWeight(.semibold)
             }
             LabeledContent("Spent") {
-                Text(spent, format: .rupees)
+                Text(usesCash ? cash.cashSpent + cash.billsPaid : spent, format: .rupees)
                     .foregroundStyle(.primary)
                     .fontWeight(.semibold)
             }
-            // How the spending was paid for. Only when a credit card was used, since otherwise it is all one kind.
-            if cash.cardSpent > 0 {
+            if usesCash {
+                // What left your cash. Credit card purchases are a line of their own and are not subtracted.
+                splitRow("Via UPI, Cash & Debit", cash.cashSpent, color: .primary)
+                splitRow("Card Bills Paid", cash.billsPaid, color: .primary)
+                LabeledContent {
+                    Text(cash.cardSpent, format: .rupees)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.orange)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Credit Card Expenses")
+                        Text("Not subtracted until you pay the bill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else if cash.cardSpent > 0 {
+                // How the spending was paid for. Only when a credit card was used, since otherwise it is all one kind.
                 splitRow("Via Credit Card", cash.cardSpent, color: .orange)
                 splitRow("Via UPI, Cash & Debit", cash.cashSpent, color: .primary)
             }
@@ -330,7 +376,21 @@ private struct MonthlyExpenseList: View {
                         .fontWeight(.semibold)
                 }
             }
-            if cash.hasCardActivity {
+            if usesCash {
+                // Balance is Cash Left here. The sum behind it opens when it is tapped.
+                DisclosureGroup(isExpanded: $isBalanceExpanded) {
+                    workingRow("Income", income)
+                    workingRow("− Spent via UPI, Cash & Debit", cash.cashSpent)
+                    workingRow("− Card Bills Paid", cash.billsPaid)
+                    if lent > 0 { workingRow("− Lent to Friends", lent) }
+                    if repaid > 0 { workingRow("+ Repaid to You", repaid) }
+                    Text(cashViewNote(cardSpent: cash.cardSpent, billsPaid: cash.billsPaid))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } label: {
+                    balanceRow(cash.cashLeft)
+                }
+            } else if cash.hasCardActivity {
                 // Cash Left and the sum behind it sit inside Balance, and open when it is tapped.
                 DisclosureGroup(isExpanded: $isBalanceExpanded) {
                     LabeledContent("Cash Left") {
@@ -354,9 +414,9 @@ private struct MonthlyExpenseList: View {
             }
             if pending > 0 {
                 LabeledContent("Left After Pending") {
-                    Text(balance - pending, format: .rupees)
+                    Text(shownBalance - pending, format: .rupees)
                         .fontWeight(.semibold)
-                        .foregroundStyle(balance - pending >= 0 ? .green : .red)
+                        .foregroundStyle(shownBalance - pending >= 0 ? .green : .red)
                 }
             }
             LabeledContent(

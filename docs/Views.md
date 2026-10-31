@@ -40,6 +40,9 @@
 - **`GoalFormView.swift`**: add or edit a goal, planning by monthly amount or by finish date. Also the sheet for adding money to a goal by hand.
 - **`GoalDetailView.swift`**: one goal's progress, plan and history, with Add Money, I Bought It (which can open an expense form with the price filled in), Edit and Delete.
 
+## Cash and purchases
+- **`SpendingBasisPicker.swift`**: the Cash | Purchases switch at the top of the Monthly and Budget summaries, and the setting behind it. It only changes the main Spent and Balance figures.
+
 ## Payment details
 - **`PaymentDetailsView.swift`**: where you enter your UPI ID and choose whether card digits are shown, with a live preview of the "How to pay" lines friends will see.
 
