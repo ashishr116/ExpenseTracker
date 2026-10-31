@@ -21,7 +21,7 @@
 - **`CardFormView.swift`**: add or edit a saved card with full details.
 
 ## Lists and detail screens
-- **`LoansView.swift`**: loans grouped by friend, outstanding and repaid, with swipe actions and the reminder flow.
+- **`LoansView.swift`**: loans grouped by friend, outstanding and repaid, with swipe actions and the reminder flow. Each friend has a green + that opens a new loan with their name and number already filled in.
 - **`EMIsView.swift`**: EMI plans with progress and what is left to pay.
 - **`InsuranceView.swift`**: insurance plans with premiums and upcoming dues.
 - **`PortfolioView.swift`**: net worth: investments, savings, debts, accounts, money friends owe you, and EMIs still to pay.
@@ -32,7 +32,7 @@
 - **`MoreView.swift`**: the More tab, linking to everything else.
 
 ## Shared pieces
-- **`PaymentSourceFields.swift`**: the bank and card fields for choosing where a payment comes from, with your saved cards and banks as one-tap chips. Used by the insurance form and the recurring expense form.
+- **`PaymentSourceFields.swift`**: the bank and card fields for choosing where a payment comes from, with your saved cards and banks as one-tap chips. Used by the insurance, recurring expense and EMI forms.
 
 ## Recurring expenses
 - **`RecurringExpensesView.swift`**: your monthly payments with the total per month, each one's next payment day, and swipe to delete.

@@ -87,19 +87,8 @@ struct EMIFormView: View {
                                 .tag(type)
                         }
                     }
-                    if accountType.usesBank {
-                        TextField("Bank Name (e.g. HDFC Bank)", text: $bankName)
-                            .textInputAutocapitalization(.words)
-                    }
-                    if accountType.usesCard {
-                        TextField("Card No. (last 4 digits)", text: $cardLastFour)
-                            .keyboardType(.numberPad)
-                            .onChange(of: cardLastFour) { _, newValue in
-                                // Keep only digits and at most 4 of them.
-                                let digits = String(newValue.filter(\.isNumber).prefix(4))
-                                if digits != newValue { cardLastFour = digits }
-                            }
-                    }
+                    // Your saved cards and banks, one tap away, as on the expense form.
+                    PaymentSourceFields(accountType: accountType, bankName: $bankName, cardLastFour: $cardLastFour)
                 }
 
                 Section {

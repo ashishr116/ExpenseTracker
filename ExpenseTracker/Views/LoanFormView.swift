@@ -7,6 +7,14 @@ import SwiftUI
 import SwiftData
 import ContactsUI
 
+/// A friend already saved from an earlier loan, to start a new loan with their name and number filled in.
+struct LoanFriend: Identifiable {
+    let name: String
+    let phone: String
+
+    var id: String { name.lowercased() }
+}
+
 /// Sheet for recording money lent to a friend — either as cash/transfer or by letting them
 /// use your card — or editing an existing loan when `loan` is non-nil.
 struct LoanFormView: View {
@@ -53,12 +61,14 @@ struct LoanFormView: View {
     @State private var isRecordingRepayment = false
     @State private var activeReminder: LoanReminder?
 
-    /// - Parameter defaultDate: Date used for new loans from a selected day or month.
-    init(loan: Loan? = nil, defaultDate: Date = .now) {
+    /// - Parameters:
+    ///   - defaultDate: Date used for new loans from a selected day or month.
+    ///   - friend: For a new loan, a friend whose name and number are already known, so they needn't be typed again.
+    init(loan: Loan? = nil, defaultDate: Date = .now, friend: LoanFriend? = nil) {
         self.loan = loan
         _amount = State(initialValue: loan?.amount)
-        _friendName = State(initialValue: loan?.friendName ?? "")
-        _friendPhone = State(initialValue: loan?.friendPhone ?? "")
+        _friendName = State(initialValue: loan?.friendName ?? friend?.name ?? "")
+        _friendPhone = State(initialValue: loan?.friendPhone ?? friend?.phone ?? "")
         _note = State(initialValue: loan?.note ?? "")
         _date = State(initialValue: loan?.date ?? defaultDate)
         _method = State(initialValue: loan?.method ?? .cash)

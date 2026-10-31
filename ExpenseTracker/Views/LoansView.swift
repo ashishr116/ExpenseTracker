@@ -16,6 +16,8 @@ struct LoansView: View {
     @Query private var emis: [EMI]
 
     @State private var isAddingLoan = false
+    /// A saved friend a new loan is being added for, with their name and number filled in.
+    @State private var addingLoanFor: LoanFriend?
     @State private var editingLoan: Loan?
     /// The loan a friend is paying part of back.
     @State private var repaymentLoan: Loan?
@@ -88,9 +90,12 @@ struct LoansView: View {
                                             }
                                     }
                                 } label: {
-                                    FriendSummaryRow(friend: entry.friend, loans: entry.loans) {
-                                        remind(friend: entry.friend, loans: entry.loans)
-                                    }
+                                    FriendSummaryRow(
+                                        friend: entry.friend,
+                                        loans: entry.loans,
+                                        onRemind: { remind(friend: entry.friend, loans: entry.loans) },
+                                        onAddLoan: { addingLoanFor = friendDetails(for: entry.friend) }
+                                    )
                                 }
                             }
                         } header: {
@@ -135,6 +140,9 @@ struct LoansView: View {
         }
         .sheet(isPresented: $isAddingLoan) {
             LoanFormView()
+        }
+        .sheet(item: $addingLoanFor) { friend in
+            LoanFormView(friend: friend)
         }
         .sheet(item: $editingLoan) { loan in
             LoanFormView(loan: loan)
@@ -188,6 +196,16 @@ struct LoansView: View {
                 }
             }
         }
+    }
+
+    /// A friend's name and their most recently saved number, taken from any of their loans.
+    private func friendDetails(for friend: String) -> LoanFriend {
+        let theirs = loans.filter { $0.friendName.caseInsensitiveCompare(friend) == .orderedSame }
+        let phone = theirs
+            .sorted { $0.date > $1.date }
+            .map { $0.friendPhone.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty } ?? ""
+        return LoanFriend(name: friend, phone: phone)
     }
 
     // MARK: Reminders
@@ -268,11 +286,12 @@ struct LoansView: View {
 }
 
 /// A friend's name with how many loans they have and the total they owe.
-/// Pass `onRemind` to show a "send reminder" button.
+/// Pass `onRemind` to show a "send reminder" button, and `onAddLoan` to show a "+" for lending to them again.
 struct FriendSummaryRow: View {
     let friend: String
     let loans: [Loan]
     var onRemind: (() -> Void)? = nil
+    var onAddLoan: (() -> Void)? = nil
 
     private var lastReminded: Date? {
         loans.compactMap(\.lastRemindedAt).max()
@@ -298,6 +317,13 @@ struct FriendSummaryRow: View {
             Spacer()
             Text(loans.outstandingTotal, format: .rupees)
                 .fontWeight(.semibold)
+            if let onAddLoan {
+                Button("Add Another Loan for \(friend)", systemImage: "plus.circle.fill", action: onAddLoan)
+                    .labelStyle(.iconOnly)
+                    .font(.title2)
+                    .foregroundStyle(.green)
+                    .buttonStyle(.borderless)
+            }
             if let onRemind {
                 Button("Send Reminder to \(friend)", systemImage: "message.circle.fill", action: onRemind)
                     .labelStyle(.iconOnly)
