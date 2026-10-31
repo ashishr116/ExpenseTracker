@@ -165,6 +165,12 @@ final class Expense {
         (emi != nil || insurancePolicy != nil) && paidAt == nil
     }
 
+    /// An EMI instalment or premium charged to a credit card. The bank bills it on its date whether or not
+    /// it has been marked paid, so the card owes it from that day.
+    var isBilledToCard: Bool {
+        (emi != nil || insurancePolicy != nil) && accountType == .creditCard
+    }
+
     /// Fixed spending: EMIs, premiums and categories like rent and groceries. Everything else is variable.
     var isFixedSpending: Bool {
         emi != nil || insurancePolicy != nil || category.isFixed

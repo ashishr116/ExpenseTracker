@@ -88,10 +88,11 @@ struct AccountLedger {
 
         var built: [Entry] = []
 
-        for expense in expenses where !expense.isPlanned {
-            // An EMI or premium moves money on the day it was paid, not on its billing date.
+        // A card EMI or premium is on the card from its billing date, paid or not.
+        for expense in expenses where !expense.isPlanned || expense.isBilledToCard {
+            // Any other EMI or premium moves money on the day it was paid, not on its billing date.
             let isRecurring = expense.emi != nil || expense.insurancePolicy != nil
-            let date = isRecurring ? (expense.paidAt ?? expense.date) : expense.date
+            let date = isRecurring && !expense.isBilledToCard ? (expense.paidAt ?? expense.date) : expense.date
             guard date <= now else { continue }
             let owner = account(for: expense)
             let amount = expense.amount
