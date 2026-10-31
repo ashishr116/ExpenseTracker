@@ -9,7 +9,8 @@ Built with SwiftUI and SwiftData. Requires the iOS version set in the Xcode proj
 | Area | What you can do |
 |---|---|
 | **Daily / Monthly** | See every expense, income, loan and card bill payment for a day or a month, with totals. |
-| **Budget** | Summary, monthly limits per category, fixed vs variable spending, bank vs credit card vs cash, a category pie chart, and how much you saved. Each page is built only when opened. |
+| **Budget** | Summary, a monthly recap, monthly limits per category, fixed vs variable spending, bank vs credit card vs cash, a category pie chart, and how much you saved. Each page is built only when opened. |
+| **Monthly recap** | A plain-English summary of any month: what you spent and kept, how it compares with the month before, your top categories, the biggest expense, no-spend days, and what went over its limit. It can be shared, and a notification on the 1st says the recap is ready. |
 | **Category limits** | Set the most you want to spend each month on a category, such as food. The Limits page shows how much is used, and you get a notice at 80% and again if you go over. |
 | **Accounts** | Bank accounts, cash and credit cards with balances worked out from your entries. Transfers, card bill payments, and "match real balance" adjustments. |
 | **EMIs** | Instalment plans. Each month is a real expense that counts only once you record it as paid. |

@@ -89,6 +89,7 @@ private struct RootView: View {
             GoalAllocator.run(in: modelContext)
             SalaryPlanStore.postDue(in: modelContext)
             await BudgetAlerts.check(in: modelContext)
+            await RecapReminder.scheduleIfNeeded()
 
             // A fresh install gets the guided setup. An install that already has data skips it.
             if !onboardingCompleted {

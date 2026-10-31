@@ -14,6 +14,7 @@ struct BudgetView: View {
     /// The views on this tab. Only the selected one is built, so the others cost nothing until opened.
     private enum BudgetPage: String, CaseIterable, Identifiable {
         case summary = "Summary"
+        case recap = "Recap"
         case limits = "Limits"
         case fixed = "Fixed"
         case payment = "Bank/Card"
@@ -55,6 +56,7 @@ struct BudgetView: View {
 
             switch page {
             case .summary: BudgetSummaryList(month: month)
+            case .recap: BudgetRecapView(month: month)
             case .limits: BudgetLimitsView(month: month)
             case .fixed: BudgetFixedVariableView(month: month)
             case .payment: BudgetPaymentModeView(month: month)

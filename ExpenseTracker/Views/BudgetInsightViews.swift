@@ -572,3 +572,202 @@ private struct LimitRow: View {
         .padding(.vertical, 2)
     }
 }
+
+// MARK: - Recap
+
+/// A short summary of the month: what you spent and kept, where it went, and what stood out.
+struct BudgetRecapView: View {
+    let month: Date
+
+    @Query private var expenses: [Expense]
+    @Query private var previousExpenses: [Expense]
+    @Query private var incomes: [Income]
+    @Query private var loansLent: [Loan]
+    @Query private var repayments: [LoanRepayment]
+    @Query private var contributions: [GoalContribution]
+    @Query private var budgets: [CategoryBudget]
+
+    init(month: Date) {
+        self.month = month
+        let calendar = Calendar.current
+        let range = calendar.monthRange(containing: month)
+        let start = range.lowerBound
+        let end = range.upperBound
+        let previousStart = calendar.date(byAdding: .month, value: -1, to: start) ?? start
+
+        _expenses = Query(filter: #Predicate<Expense> { $0.date >= start && $0.date < end })
+        _previousExpenses = Query(filter: #Predicate<Expense> { $0.date >= previousStart && $0.date < start })
+        _incomes = Query(filter: #Predicate<Income> { $0.date >= start && $0.date < end })
+        let cashMethod = LoanMethod.cash.rawValue
+        _loansLent = Query(filter: #Predicate<Loan> { $0.date >= start && $0.date < end && $0.methodRaw == cashMethod })
+        _repayments = Query(filter: #Predicate<LoanRepayment> { $0.date >= start && $0.date < end })
+        _contributions = Query(filter: #Predicate<GoalContribution> { $0.date >= start && $0.date < end })
+    }
+
+    private var recap: MonthlyRecap {
+        MonthlyRecap(
+            month: month,
+            expenses: expenses,
+            previousExpenses: previousExpenses,
+            incomes: incomes,
+            cashLoans: loansLent,
+            cashRepayments: repayments.filter(\.isCashInflow),
+            budgets: budgets,
+            contributions: contributions
+        )
+    }
+
+    var body: some View {
+        let recap = recap
+
+        List {
+            if recap.hasData {
+                Section {
+                    Text(recap.headline)
+                        .font(.body)
+                        .padding(.vertical, 4)
+                } header: {
+                    Text(recap.isFinished ? "Your Month" : "So Far This Month")
+                }
+
+                numbers(recap)
+                whereItWent(recap)
+                highlights(recap)
+                splits(recap)
+
+                Section {
+                    ShareLink(item: recap.shareText) {
+                        Label("Share This Recap", systemImage: "square.and.arrow.up")
+                    }
+                }
+            }
+        }
+        .overlay {
+            if !recap.hasData {
+                ContentUnavailableView(
+                    "Nothing to Recap",
+                    systemImage: "doc.text.magnifyingglass",
+                    description: Text("Add income or expenses for this month to see its recap.")
+                )
+            }
+        }
+    }
+
+    // MARK: Sections
+
+    private func numbers(_ recap: MonthlyRecap) -> some View {
+        Section("The Month in Numbers") {
+            LabeledContent("Income") {
+                Text(recap.income, format: .rupees).foregroundStyle(.green)
+            }
+            LabeledContent("Spent") {
+                Text(recap.spent, format: .rupees).fontWeight(.semibold)
+            }
+            LabeledContent(recap.isFinished ? "Kept" : "Kept So Far") {
+                Text(recap.saved, format: .rupees)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(recap.saved >= 0 ? Color.green : Color.red)
+            }
+            if let rate = recap.savingsRate {
+                LabeledContent("Savings Rate") {
+                    Text(rate, format: .percent.precision(.fractionLength(0)))
+                        .foregroundStyle(rate >= 0 ? Color.green : Color.red)
+                }
+            }
+            if let change = recap.spendingChange {
+                LabeledContent("Spending vs Last Month") {
+                    // Spending going down is good news, so it is green.
+                    Text("\(change > 0 ? "+" : "")\(change.formatted(.percent.precision(.fractionLength(0))))")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(change <= 0 ? Color.green : Color.orange)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func whereItWent(_ recap: MonthlyRecap) -> some View {
+        if !recap.topCategories.isEmpty {
+            Section("Where It Went") {
+                ForEach(recap.topCategories) { item in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Label(item.category.rawValue, systemImage: item.category.systemImage)
+                            Spacer()
+                            Text(item.total, format: .rupees).fontWeight(.semibold)
+                        }
+                        ProgressView(value: share(item.total, of: recap.spent))
+                        Text("\(share(item.total, of: recap.spent).formatted(.percent.precision(.fractionLength(0)))) of your spending")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func highlights(_ recap: MonthlyRecap) -> some View {
+        Section("Highlights") {
+            if let biggest = recap.biggestExpense {
+                LabeledContent("Biggest Expense") {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(biggest.amount, format: .rupees).fontWeight(.semibold)
+                        Text("\(biggest.displayTitle) · \(biggest.date.formatted(.dateTime.day().month()))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if let rise = recap.biggestRise {
+                LabeledContent("Rose the Most") {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("+\(rise.total.formatted(.rupees))")
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.orange)
+                        Text(rise.category.rawValue)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if recap.daysCounted > 0 {
+                LabeledContent("Daily Average") {
+                    Text(recap.dailyAverage, format: .rupees)
+                }
+                LabeledContent("Days With No Spending") {
+                    Text("\(recap.noSpendDays) of \(recap.daysCounted)")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func splits(_ recap: MonthlyRecap) -> some View {
+        if recap.spent > 0 || !recap.overLimit.isEmpty || recap.goalsSetAside > 0 {
+            Section("Planning") {
+                if recap.spent > 0 {
+                    LabeledContent("Fixed Spending") {
+                        Text(recap.fixedSpent, format: .rupees)
+                    }
+                    LabeledContent("Variable Spending") {
+                        Text(recap.variableSpent, format: .rupees)
+                    }
+                }
+                if !recap.overLimit.isEmpty {
+                    LabeledContent("Over Their Limit") {
+                        Text(recap.overLimit.map(\.rawValue).joined(separator: ", "))
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+                if recap.goalsSetAside > 0 {
+                    LabeledContent("Set Aside for Goals") {
+                        Text(recap.goalsSetAside, format: .rupees).foregroundStyle(.green)
+                    }
+                }
+            }
+        }
+    }
+}
