@@ -263,17 +263,6 @@ private struct MonthlyExpenseList: View {
         .font(.subheadline)
     }
 
-    /// A note under the sum behind Balance in the Cash view: what is still to come out for card spending.
-    private func cashViewNote(cardSpent: Decimal, billsPaid: Decimal) -> String {
-        let gap = cardSpent - billsPaid
-        if gap > 0 {
-            return "\(gap.formatted(.rupees)) of this month's card spending isn't paid yet. It comes out of Balance when you pay the bill."
-        } else if gap < 0 {
-            return "Includes \((-gap).formatted(.rupees)) of card bills from earlier months."
-        }
-        return "This month's card spending has all been paid."
-    }
-
     /// Why Balance and Cash Left differ: card spending counts as spent when you buy, and as cash only when you pay.
     private func gapExplanation(cardSpent: Decimal, billsPaid: Decimal) -> String {
         let gap = cardSpent - billsPaid
@@ -335,21 +324,23 @@ private struct MonthlyExpenseList: View {
                     .fontWeight(.semibold)
             }
             if usesCash {
-                // What left your cash. Credit card purchases are a line of their own and are not subtracted.
+                // What left your cash, then the credit card purchases, which are shown but not counted in Spent.
                 splitRow("Via UPI, Cash & Debit", cash.cashSpent, color: .primary)
-                splitRow("Card Bills Paid", cash.billsPaid, color: .primary)
+                splitRow("Credit Card Bills Paid", cash.billsPaid, color: .primary)
                 LabeledContent {
                     Text(cash.cardSpent, format: .rupees)
-                        .fontWeight(.semibold)
                         .foregroundStyle(.orange)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Credit Card Expenses")
-                        Text("Not subtracted until you pay the bill")
-                            .font(.caption)
                             .foregroundStyle(.secondary)
+                        Text("Not in Spent until you pay the bill")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
                 }
+                .font(.subheadline)
+                .padding(.leading, 16)
             } else if cash.cardSpent > 0 {
                 // How the spending was paid for. Only when a credit card was used, since otherwise it is all one kind.
                 splitRow("Via Credit Card", cash.cardSpent, color: .orange)
@@ -377,19 +368,8 @@ private struct MonthlyExpenseList: View {
                 }
             }
             if usesCash {
-                // Balance is Cash Left here. The sum behind it opens when it is tapped.
-                DisclosureGroup(isExpanded: $isBalanceExpanded) {
-                    workingRow("Income", income)
-                    workingRow("− Spent via UPI, Cash & Debit", cash.cashSpent)
-                    workingRow("− Card Bills Paid", cash.billsPaid)
-                    if lent > 0 { workingRow("− Lent to Friends", lent) }
-                    if repaid > 0 { workingRow("+ Repaid to You", repaid) }
-                    Text(cashViewNote(cardSpent: cash.cardSpent, billsPaid: cash.billsPaid))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } label: {
-                    balanceRow(cash.cashLeft)
-                }
+                // Balance is Cash Left here, so there is nothing more to open.
+                balanceRow(cash.cashLeft)
             } else if cash.hasCardActivity {
                 // Cash Left and the sum behind it sit inside Balance, and open when it is tapped.
                 DisclosureGroup(isExpanded: $isBalanceExpanded) {
