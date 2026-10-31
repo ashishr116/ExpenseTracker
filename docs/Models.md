@@ -26,6 +26,10 @@ SwiftData records saved on the device. Money is stored as whole paise and read b
 - `Loan`: money lent to a friend. Supports part payments, an instalment count and amount (for a personal loan or a friend's EMI on your card), and a monthly reminder day.
 - `LoanRepayment`: one payment received from the friend. Only repayments of cash loans count as income.
 
+## `RecurringExpense.swift`
+- `RecurringExpense`: something paid every month, with its day (1 to 28), amount, category, where it is paid from, a start date, an optional end date, and a pause switch.
+- `RecurringExpensePoster`: at launch, adds an ordinary expense for each plan whose payment day has come, once per month. Days that haven't come yet are left for later, and nothing is added for days before the start date. The expenses it adds can be edited or deleted on their own.
+
 ## `Goal.swift`
 - `Goal`: something you are saving for, with a target, a monthly amount, an optional finish date, and when it was bought. Works out progress, the month it will be ready, and how far behind plan it is.
 - `GoalContribution`: one amount set aside, automatically at month end or added by hand.

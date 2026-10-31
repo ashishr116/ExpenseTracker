@@ -32,6 +32,7 @@ struct ExpenseTrackerApp: App {
             Transfer.self,
             Goal.self,
             GoalContribution.self,
+            RecurringExpense.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -81,6 +82,8 @@ private struct RootView: View {
             DataMigrations.run(in: modelContext)
             // Credit cards added under Accounts before this existed get their saved card now.
             CardSync.sync(in: modelContext)
+            // Monthly payments are added before the month-end totals look at the finished months.
+            RecurringExpensePoster.run(in: modelContext)
             SavingsSweep.run(in: modelContext)
             GoalAllocator.run(in: modelContext)
             SalaryPlanStore.postDue(in: modelContext)
@@ -103,6 +106,7 @@ private struct RootView: View {
         // A new month may have started while the app was in the background.
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
+                RecurringExpensePoster.run(in: modelContext)
                 SavingsSweep.run(in: modelContext)
                 GoalAllocator.run(in: modelContext)
                 SalaryPlanStore.postDue(in: modelContext)

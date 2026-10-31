@@ -138,6 +138,18 @@ enum CSVExporter {
         }
         tables.append(goalTable)
 
+        var recurringTable = Table(fileName: "recurring-expenses.csv", header: [
+            "Name", "Amount", "Category", "Day of Month", "Starts From", "Ends On", "Paid By", "Bank", "Card Last 4", "Active"
+        ])
+        for plan in try all(RecurringExpense.self).sorted(by: { $0.createdAt < $1.createdAt }) {
+            recurringTable.rows.append([
+                text(plan.title), money(plan.amount), plan.categoryRaw, String(plan.dayOfMonth),
+                date(plan.startDate), date(plan.endDate), plan.accountTypeRaw, text(plan.bankName),
+                plan.cardLastFour, yesNo(plan.isActive)
+            ])
+        }
+        tables.append(recurringTable)
+
         var repaymentTable = Table(fileName: "loan_repayments.csv", header: [
             "Date", "Friend", "Amount", "Received In", "Note"
         ])

@@ -30,6 +30,23 @@ struct BackupFile: Codable {
     var monthlySavings: [SavingsDTO] = []
     /// Missing in backups made before goals existed.
     var goals: [GoalDTO]?
+    /// Missing in backups made before recurring expenses existed.
+    var recurringExpenses: [RecurringExpenseDTO]?
+}
+
+struct RecurringExpenseDTO: Codable {
+    var title: String
+    var amountPaise: Int64
+    var categoryRaw: String
+    var accountTypeRaw: String
+    var bankName: String
+    var cardLastFour: String
+    var dayOfMonth: Int
+    var startDate: Date
+    var endDate: Date?
+    var isActive: Bool
+    var lastPostedMonth: Date?
+    var createdAt: Date
 }
 
 struct GoalDTO: Codable {
@@ -358,6 +375,15 @@ enum BackupManager {
             )
         }
 
+        file.recurringExpenses = try all(RecurringExpense.self).map {
+            RecurringExpenseDTO(
+                title: $0.title, amountPaise: $0.amountPaise, categoryRaw: $0.categoryRaw,
+                accountTypeRaw: $0.accountTypeRaw, bankName: $0.bankName, cardLastFour: $0.cardLastFour,
+                dayOfMonth: $0.dayOfMonth, startDate: $0.startDate, endDate: $0.endDate, isActive: $0.isActive,
+                lastPostedMonth: $0.lastPostedMonth, createdAt: $0.createdAt
+            )
+        }
+
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -526,6 +552,20 @@ enum BackupManager {
             }
         }
 
+        for dto in file.recurringExpenses ?? [] {
+            let plan = RecurringExpense(
+                title: dto.title, amount: Money.amount(fromPaise: dto.amountPaise),
+                category: ExpenseCategory(rawValue: dto.categoryRaw) ?? .other,
+                accountType: AccountType(rawValue: dto.accountTypeRaw) ?? .cash,
+                bankName: dto.bankName, cardLastFour: dto.cardLastFour, dayOfMonth: dto.dayOfMonth,
+                startDate: dto.startDate, endDate: dto.endDate
+            )
+            plan.isActive = dto.isActive
+            plan.lastPostedMonth = dto.lastPostedMonth
+            plan.createdAt = dto.createdAt
+            context.insert(plan)
+        }
+
         // The restored instalments and premiums already carry their paid status. Without this, the one-time
         // upgrade that treats past-dated items as paid would run again and mark unpaid ones as paid.
         UserDefaults.standard.set(true, forKey: EMI.paidStateMigrationKey)
@@ -541,6 +581,7 @@ enum BackupManager {
             }
         }
         // Records that point at others first.
+        try deleteAll(RecurringExpense.self)
         try deleteAll(GoalContribution.self)
         try deleteAll(Goal.self)
         try deleteAll(MonthlySavings.self)

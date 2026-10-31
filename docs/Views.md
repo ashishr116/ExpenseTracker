@@ -28,6 +28,10 @@
 - **`CardsView.swift`**: saved cards, masked until you unlock with Face ID.
 - **`MoreView.swift`**: the More tab, linking to everything else.
 
+## Recurring expenses
+- **`RecurringExpensesView.swift`**: your monthly payments with the total per month, each one's next payment day, and swipe to delete.
+- **`RecurringExpenseFormView.swift`**: add or edit a monthly payment, with a preview of when the first one is added, an optional end date, and a pause switch.
+
 ## Goals
 - **`GoalsView.swift`**: your goals with progress, how much is set aside, and whether each is on track or behind.
 - **`GoalFormView.swift`**: add or edit a goal, planning by monthly amount or by finish date. Also the sheet for adding money to a goal by hand.

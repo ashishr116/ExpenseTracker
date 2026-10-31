@@ -15,6 +15,7 @@ struct MoreView: View {
     @Query private var monthlySavings: [MonthlySavings]
     @Query private var policies: [InsurancePolicy]
     @Query private var goals: [Goal]
+    @Query private var recurringPlans: [RecurringExpense]
 
     private var activeGoals: [Goal] { goals.filter { !$0.isCompleted } }
 
@@ -104,6 +105,28 @@ struct MoreView: View {
                         }
                     } icon: {
                         Image(systemName: "banknote")
+                    }
+                }
+            }
+
+            NavigationLink {
+                RecurringExpensesView()
+            } label: {
+                LabeledContent {
+                    if !recurringPlans.isEmpty {
+                        Text(recurringPlans.monthlyTotal, format: .rupees)
+                            .foregroundStyle(.secondary)
+                    }
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Recurring Expenses")
+                            Text("Rent, maid and subscriptions")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "arrow.triangle.2.circlepath")
                     }
                 }
             }
