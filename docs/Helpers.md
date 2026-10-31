@@ -30,7 +30,7 @@ Remembers your monthly salary, day and bank, and adds it to income each month, u
 One-off upgrades for data saved by earlier versions. Safe to run on every launch.
 
 ## `MonthlyRecap.swift`
-Works out a month's recap: income, spending, what was kept, the comparison with the month before, the top three categories, the biggest expense, the category that rose most, fixed vs variable spending, limits that were exceeded, money set aside for goals, the daily average and no-spend days. Also writes the one-paragraph summary used at the top of the Recap page and in sharing. `RecapReminder` schedules the notification on the 1st of each month.
+Works out a month's recap: income, spending, what was kept, the comparison with the month before, the top three categories, the biggest expense, the category that rose most, fixed vs variable spending, limits that were exceeded, money set aside for goals, the daily average and no-spend days. Also writes a one-paragraph summary, used when sharing the recap and read aloud by VoiceOver in place of the chart. `RecapReminder` schedules the notification on the 1st of each month.
 
 ## `CardVault.swift`
 Stores each card's full number, expiry and CVV in the iPhone's Keychain, available only while the phone is unlocked and only on this phone. Also removes the items of cards that were deleted.

@@ -622,14 +622,7 @@ struct BudgetRecapView: View {
 
         List {
             if recap.hasData {
-                Section {
-                    Text(recap.headline)
-                        .font(.body)
-                        .padding(.vertical, 4)
-                } header: {
-                    Text(recap.isFinished ? "Your Month" : "So Far This Month")
-                }
-
+                overview(recap)
                 numbers(recap)
                 whereItWent(recap)
                 highlights(recap)
@@ -654,6 +647,60 @@ struct BudgetRecapView: View {
     }
 
     // MARK: Sections
+
+    /// One bar in the overview chart.
+    private struct OverviewBar: Identifiable {
+        let name: String
+        let amount: Decimal
+        let color: Color
+        var id: String { name }
+    }
+
+    /// Income, spending, last month's spending and what was kept, drawn as bars so they can be compared at a glance.
+    private func overview(_ recap: MonthlyRecap) -> some View {
+        var bars = [
+            OverviewBar(name: "Income", amount: recap.income, color: .green),
+            OverviewBar(name: "Spent", amount: recap.spent, color: .accentColor)
+        ]
+        if let previous = recap.previousSpent {
+            let name = recap.previousMonth.formatted(.dateTime.month(.abbreviated))
+            bars.append(OverviewBar(name: "Spent in \(name)", amount: previous, color: .gray))
+        }
+        bars.append(OverviewBar(name: recap.isFinished ? "Kept" : "Kept so far", amount: recap.saved, color: recap.saved >= 0 ? .teal : .red))
+
+        // Room on the right (and left, for a negative amount) for the amount written beside each bar.
+        let amounts = bars.map { $0.amount.asDouble }
+        let high = max(amounts.max() ?? 0, 0)
+        let low = min(amounts.min() ?? 0, 0)
+        let lower = low < 0 ? low * 1.5 : 0
+        let upper = high * 1.4
+
+        return Section {
+            Chart(bars) { bar in
+                BarMark(
+                    x: .value("Amount", bar.amount.asDouble),
+                    y: .value("Item", bar.name)
+                )
+                .foregroundStyle(bar.color)
+                .cornerRadius(4)
+                .annotation(position: .trailing, alignment: .leading) {
+                    Text(bar.amount, format: .rupees.precision(.fractionLength(0)))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .chartYScale(domain: bars.map(\.name))
+            .chartXScale(domain: lower...max(upper, 1))
+            .chartXAxis(.hidden)
+            .frame(height: CGFloat(bars.count) * 48 + 8)
+            .padding(.vertical, 6)
+            // The chart is a picture, so describe it in words for VoiceOver.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(recap.headline)
+        } header: {
+            Text(recap.isFinished ? "Your Month" : "So Far This Month")
+        }
+    }
 
     private func numbers(_ recap: MonthlyRecap) -> some View {
         Section("The Month in Numbers") {
