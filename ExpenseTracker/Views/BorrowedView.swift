@@ -5,6 +5,7 @@
 
 import SwiftUI
 import SwiftData
+import ContactsUI
 
 /// Money borrowed from friends: what you still owe, and what you have paid back.
 struct BorrowedView: View {
@@ -109,8 +110,11 @@ private struct BorrowingRow: View {
 struct BorrowingFormView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     @Query(sort: \Account.createdAt) private var allAccounts: [Account]
+    @Query(sort: \Borrowing.date, order: .reverse) private var allBorrowings: [Borrowing]
+    @Query(sort: \Loan.date, order: .reverse) private var allLoans: [Loan]
 
     let borrowing: Borrowing?
 
@@ -123,6 +127,10 @@ struct BorrowingFormView: View {
     @State private var receivedIn: String
     @State private var hasDueDate: Bool
     @State private var dueDate: Date
+
+    @State private var phoneChoices: [CNLabeledValue<CNPhoneNumber>] = []
+    @State private var isChoosingPhone = false
+    @State private var activeMessage: BorrowingMessage?
 
     init(borrowing: Borrowing? = nil) {
         self.borrowing = borrowing
@@ -147,6 +155,41 @@ struct BorrowingFormView: View {
 
     private var trimmedName: String { friendName.trimmingCharacters(in: .whitespacesAndNewlines) }
 
+    /// Existing friends known from past borrowings or loans, to quick-fill name and number.
+    private var friendSuggestions: [String] {
+        var seen = Set<String>()
+        let namesFromBorrowings = allBorrowings.map(\.friendName)
+        let namesFromLoans = allLoans.map(\.friendName)
+        return (namesFromBorrowings + namesFromLoans)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+            .filter { name in
+                name.caseInsensitiveCompare(trimmedName) != .orderedSame
+                    && (trimmedName.isEmpty || name.localizedCaseInsensitiveContains(trimmedName))
+            }
+    }
+
+    private var friendSuggestionChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack {
+                ForEach(friendSuggestions, id: \.self) { name in
+                    Button(name, systemImage: "person.crop.circle") {
+                        friendName = name
+                        if friendPhone.isEmpty {
+                            if let phone = (allBorrowings.first(where: { $0.friendName.caseInsensitiveCompare(name) == .orderedSame && !$0.friendPhone.isEmpty })?.friendPhone
+                                            ?? allLoans.first(where: { $0.friendName.caseInsensitiveCompare(name) == .orderedSame && !$0.friendPhone.isEmpty })?.friendPhone) {
+                                friendPhone = phone
+                            }
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
     private var isValid: Bool {
         guard let amount, amount > 0 else { return false }
         // An amount can't be lowered below what has already been paid back.
@@ -161,10 +204,31 @@ struct BorrowingFormView: View {
                     TextField("Amount", value: $amount, format: .rupees)
                         .keyboardType(.decimalPad)
                         .font(.title2.weight(.semibold))
-                    TextField("Friend's Name", text: $friendName)
-                        .textInputAutocapitalization(.words)
+
+                    HStack {
+                        TextField("Friend's Name", text: $friendName)
+                            .textInputAutocapitalization(.words)
+
+                        Button {
+                            ContactPickerPresenter.shared.present { contact in
+                                handleContactSelection(contact)
+                            }
+                        } label: {
+                            Image(systemName: "person.crop.circle.badge.plus")
+                                .font(.title3)
+                                .foregroundStyle(.tint)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Select from Contacts")
+                    }
+
                     TextField("Phone Number (optional)", text: $friendPhone)
                         .keyboardType(.phonePad)
+
+                    if !friendSuggestions.isEmpty {
+                        friendSuggestionChips
+                    }
+
                     TextField("Note (optional)", text: $note)
                 }
 
@@ -193,6 +257,26 @@ struct BorrowingFormView: View {
                     }
                 }
 
+                Section {
+                    Button {
+                        saveAndMessage()
+                    } label: {
+                        Label(borrowing == nil ? "Save & Send Message" : "Send Confirmation Message", systemImage: "message.fill")
+                            .font(.body.weight(.medium))
+                    }
+                    .disabled(!isValid)
+
+                    Button {
+                        saveAndWhatsApp()
+                    } label: {
+                        Label(borrowing == nil ? "Save & Send on WhatsApp" : "Send on WhatsApp", systemImage: "bubble.left.and.text.bubble.right")
+                            .font(.body.weight(.medium))
+                    }
+                    .disabled(!isValid)
+                } footer: {
+                    Text("Pre-fills an SMS / iMessage or WhatsApp with the amount, received date, payment form, and promised return date.")
+                }
+
                 if let borrowing {
                     Section {
                         Button("Delete", role: .destructive) {
@@ -216,15 +300,50 @@ struct BorrowingFormView: View {
                         .disabled(!isValid)
                 }
             }
+            .confirmationDialog("Choose a Number", isPresented: $isChoosingPhone, titleVisibility: .visible) {
+                ForEach(phoneChoices, id: \.identifier) { choice in
+                    let label = CNLabeledValue<CNPhoneNumber>.localizedString(forLabel: choice.label ?? "")
+                    Button("\(label) · \(choice.value.stringValue)") {
+                        friendPhone = choice.value.stringValue
+                    }
+                }
+            }
+            .sheet(item: $activeMessage) { message in
+                BorrowingMessageSheet(message: message) {
+                    dismiss()
+                }
+            }
         }
     }
 
-    private func save() {
-        guard let amount, isValid else { return }
+    private func handleContactSelection(_ contact: CNContact) {
+        let fullName = CNContactFormatter.string(from: contact, style: .fullName) ?? ""
+        let fallback = [contact.givenName, contact.familyName].filter { !$0.isEmpty }.joined(separator: " ")
+        let resolvedName = fullName.isEmpty ? fallback : fullName
+        if !resolvedName.isEmpty {
+            friendName = resolvedName
+        }
+
+        let numbers = contact.phoneNumbers
+        if numbers.count == 1 {
+            friendPhone = numbers[0].value.stringValue
+        } else if numbers.count > 1 {
+            phoneChoices = numbers
+            Task {
+                try? await Task.sleep(for: .milliseconds(500))
+                isChoosingPhone = true
+            }
+        }
+    }
+
+    @discardableResult
+    private func persistBorrowing() -> Borrowing? {
+        guard let amount, isValid else { return nil }
         let trimmedPhone = friendPhone.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         let due: Date? = hasDueDate ? dueDate : nil
 
+        let target: Borrowing
         if let borrowing {
             borrowing.amount = amount
             borrowing.friendName = trimmedName
@@ -234,14 +353,39 @@ struct BorrowingFormView: View {
             borrowing.bankName = receivedIn
             borrowing.dueDate = due
             borrowing.syncRepaidState()
+            target = borrowing
         } else {
-            modelContext.insert(Borrowing(
+            let created = Borrowing(
                 amount: amount, friendName: trimmedName, friendPhone: trimmedPhone,
                 note: trimmedNote, date: date, bankName: receivedIn, dueDate: due
-            ))
+            )
+            modelContext.insert(created)
+            target = created
         }
         reschedule()
+        return target
+    }
+
+    private func save() {
+        if persistBorrowing() != nil {
+            dismiss()
+        }
+    }
+
+    private func saveAndWhatsApp() {
+        guard let saved = persistBorrowing() else { return }
+        let msg = BorrowingMessage(borrowing: saved)
+        guard let url = msg.whatsAppURL else {
+            dismiss()
+            return
+        }
+        openURL(url)
         dismiss()
+    }
+
+    private func saveAndMessage() {
+        guard let saved = persistBorrowing() else { return }
+        activeMessage = BorrowingMessage(borrowing: saved)
     }
 
     private func reschedule() {
@@ -258,11 +402,13 @@ struct BorrowingFormView: View {
 /// One debt to a friend: what is left, the payments made, and a way to record another.
 struct BorrowingDetailView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
 
     let borrowing: Borrowing
 
     @State private var isPaying = false
     @State private var isEditing = false
+    @State private var activeMessage: BorrowingMessage?
 
     var body: some View {
         List {
@@ -339,7 +485,22 @@ struct BorrowingDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Edit") { isEditing = true }
+                Menu {
+                    Button("Edit", systemImage: "pencil") { isEditing = true }
+                    Menu("Send Confirmation", systemImage: "paperplane") {
+                        Button("Message", systemImage: "message") {
+                            activeMessage = BorrowingMessage(borrowing: borrowing)
+                        }
+                        Button("WhatsApp", systemImage: "bubble.left.and.text.bubble.right") {
+                            let msg = BorrowingMessage(borrowing: borrowing)
+                            if let url = msg.whatsAppURL {
+                                openURL(url)
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
             }
         }
         .sheet(isPresented: $isPaying, onDismiss: reschedule) {
@@ -347,6 +508,9 @@ struct BorrowingDetailView: View {
         }
         .sheet(isPresented: $isEditing) {
             BorrowingFormView(borrowing: borrowing)
+        }
+        .sheet(item: $activeMessage) { message in
+            BorrowingMessageSheet(message: message)
         }
     }
 

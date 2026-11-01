@@ -214,7 +214,7 @@ struct SavingsSweepSetupView: View {
     }
 
     private var trimmedBank: String {
-        bankName.trimmingCharacters(in: .whitespacesAndNewlines)
+        BankName.normalized(bankName)
     }
 
     var body: some View {

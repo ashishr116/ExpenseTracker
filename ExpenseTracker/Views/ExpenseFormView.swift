@@ -269,7 +269,7 @@ struct ExpenseFormView: View {
         let trimmedCustom = category == .other ? customCategory.trimmingCharacters(in: .whitespacesAndNewlines) : ""
         let isBank = accountType.usesBank
         let isCard = accountType.usesCard
-        let trimmedBank = isBank ? bankName.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        let trimmedBank = isBank ? BankName.normalized(bankName) : ""
         let card = isCard ? cardLastFour : ""
 
         // Set when a credit card is saved for the first time, so its bill day can be asked for.
@@ -278,7 +278,7 @@ struct ExpenseFormView: View {
         if isCard && (!trimmedBank.isEmpty || !card.isEmpty) {
             let alreadySaved = storedCards.contains {
                 $0.accountType == accountType &&
-                $0.bankName.caseInsensitiveCompare(trimmedBank) == .orderedSame &&
+                BankName.matches($0.bankName, trimmedBank) &&
                 $0.cardLastFour == card
             }
             if !alreadySaved {
@@ -290,6 +290,10 @@ struct ExpenseFormView: View {
                 modelContext.insert(saved)
                 if accountType == .creditCard { newCreditCard = saved }
             }
+        }
+        // Credit cards saved from expenses need a matching Account before ledger entries are calculated.
+        if accountType == .creditCard {
+            CardSync.sync(in: modelContext)
         }
 
         if let expense {

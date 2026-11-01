@@ -44,6 +44,8 @@ private enum MonthlyTransaction: Identifiable {
     case loanRepayment(LoanRepayment)
     /// A credit card bill payment. Shown for reference and never counted in the totals.
     case cardPayment(Transfer)
+    case borrowed(Borrowing)
+    case borrowPayment(BorrowingPayment)
 
     var id: String {
         switch self {
@@ -52,6 +54,8 @@ private enum MonthlyTransaction: Identifiable {
         case .loanLent(let loan): return "loan-lent-\(loan.persistentModelID)"
         case .loanRepayment(let repayment): return "loan-repayment-\(repayment.persistentModelID)"
         case .cardPayment(let transfer): return "card-payment-\(transfer.persistentModelID)"
+        case .borrowed(let borrowing): return "borrowed-\(borrowing.persistentModelID)"
+        case .borrowPayment(let payment): return "borrow-payment-\(payment.persistentModelID)"
         }
     }
 
@@ -62,6 +66,8 @@ private enum MonthlyTransaction: Identifiable {
         case .loanLent(let loan): return loan.date
         case .loanRepayment(let repayment): return repayment.date
         case .cardPayment(let transfer): return transfer.date
+        case .borrowed(let borrowing): return borrowing.date
+        case .borrowPayment(let payment): return payment.date
         }
     }
 }
@@ -73,10 +79,12 @@ private struct DayGroup: Identifiable {
     let totalExpense: Decimal
     let totalLent: Decimal
     let totalRepaid: Decimal
+    let totalBorrowed: Decimal
+    let totalPaidBack: Decimal
 
     var id: Date { day }
-    var inflow: Decimal { totalIncome + totalRepaid }
-    var outflow: Decimal { totalExpense + totalLent }
+    var inflow: Decimal { totalIncome + totalRepaid + totalBorrowed }
+    var outflow: Decimal { totalExpense + totalLent + totalPaidBack }
     var netDiff: Decimal { inflow - outflow }
 }
 
@@ -137,6 +145,8 @@ private struct MonthlyExpenseList: View {
         txns.append(contentsOf: loansLent.map { MonthlyTransaction.loanLent($0) })
         txns.append(contentsOf: cashRepayments.map { MonthlyTransaction.loanRepayment($0) })
         txns.append(contentsOf: cardPayments.map { MonthlyTransaction.cardPayment($0) })
+        txns.append(contentsOf: borrowed.map { MonthlyTransaction.borrowed($0) })
+        txns.append(contentsOf: borrowPayments.map { MonthlyTransaction.borrowPayment($0) })
 
         let calendar = Calendar.current
         let grouped = Dictionary(grouping: txns) { calendar.startOfDay(for: $0.date) }
@@ -147,6 +157,8 @@ private struct MonthlyExpenseList: View {
             var dayExpense: Decimal = 0
             var dayLent: Decimal = 0
             var dayRepaid: Decimal = 0
+            var dayBorrowed: Decimal = 0
+            var dayPaidBack: Decimal = 0
             for item in dayTxns {
                 switch item {
                 case .income(let inc): dayIncome += inc.amount
@@ -154,6 +166,8 @@ private struct MonthlyExpenseList: View {
                 case .loanLent(let loan): dayLent += loan.amount
                 case .loanRepayment(let repayment): dayRepaid += repayment.amount
                 case .cardPayment: break   // a transfer, not spending: left out of every total
+                case .borrowed(let borrowing): dayBorrowed += borrowing.amount
+                case .borrowPayment(let payment): dayPaidBack += payment.amount
                 }
             }
             return DayGroup(
@@ -162,7 +176,9 @@ private struct MonthlyExpenseList: View {
                 totalIncome: dayIncome,
                 totalExpense: dayExpense,
                 totalLent: dayLent,
-                totalRepaid: dayRepaid
+                totalRepaid: dayRepaid,
+                totalBorrowed: dayBorrowed,
+                totalPaidBack: dayPaidBack
             )
         }
         .sorted { $0.day > $1.day }
@@ -241,6 +257,12 @@ private struct MonthlyExpenseList: View {
                                                 modelContext.delete(transfer)
                                             }
                                         }
+
+                                case .borrowed(let borrowing):
+                                    BorrowingEventRow(borrowing: borrowing)
+
+                                case .borrowPayment(let payment):
+                                    BorrowingEventRow(payment: payment)
                                 }
                             }
                         } label: {

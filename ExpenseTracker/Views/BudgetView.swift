@@ -16,7 +16,7 @@ struct BudgetView: View {
         case summary = "Summary"
         case recap = "Recap"
         case limits = "Limits"
-        case fixed = "Fixed"
+        case fixed = "Fixed Expenses"
         case payment = "Bank/Card"
         case chart = "Chart"
         case saved = "Saved"
@@ -75,8 +75,19 @@ private struct BudgetSummaryList: View {
     @Query private var repayments: [LoanRepayment]
     /// The month's transfers, for the card bills paid.
     @Query private var transfers: [Transfer]
+    @Query private var recurringPlans: [RecurringExpense]
+    /// Money borrowed from friends this month, and payments back to them.
+    @Query private var borrowed: [Borrowing]
+    @Query private var borrowPayments: [BorrowingPayment]
 
     private var cashRepayments: [LoanRepayment] { repayments.filter(\.isCashInflow) }
+
+    /// Rent and subscriptions due in this month but not yet posted as transactions.
+    private var scheduledFixedExpenses: Decimal {
+        recurringPlans
+            .filter { $0.hasUnpostedCommitment(in: month) }
+            .reduce(0) { $0 + $1.amount }
+    }
 
     /// Cash spending kept apart from credit card spending. See `MonthCashView`.
     private var cashView: MonthCashView {
@@ -85,7 +96,9 @@ private struct BudgetSummaryList: View {
             expenses: expenses,
             cardPayments: transfers,
             cashLent: loansLent.totalAmount,
-            cashRepaid: cashRepayments.totalAmount
+            cashRepaid: cashRepayments.totalAmount,
+            borrowed: borrowed.reduce(Decimal(0)) { $0 + $1.amount },
+            paidBack: borrowPayments.totalAmount
         )
     }
 
@@ -117,11 +130,14 @@ private struct BudgetSummaryList: View {
             order: .reverse
         )
         _transfers = Query(filter: #Predicate<Transfer> { $0.date >= start && $0.date < end })
+        _borrowed = Query(filter: #Predicate<Borrowing> { $0.date >= start && $0.date < end })
+        _borrowPayments = Query(filter: #Predicate<BorrowingPayment> { $0.date >= start && $0.date < end })
     }
 
     var body: some View {
         List {
             summarySection
+            incomeSourcesSection
             cashSection
 
             if !incomes.isEmpty || !expenses.isEmpty {
@@ -191,14 +207,43 @@ private struct BudgetSummaryList: View {
         }
     }
 
+    /// Where this month's income came from, source by source.
+    @ViewBuilder
+    private var incomeSourcesSection: some View {
+        let total = incomes.totalAmount
+        let bySource = Dictionary(grouping: incomes, by: \.source)
+            .map { (source: $0.key, total: $0.value.totalAmount) }
+            .sorted { $0.total > $1.total }
+        if total > 0 {
+            Section("Income Sources") {
+                ForEach(bySource, id: \.source) { entry in
+                    LabeledContent {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(entry.total, format: .rupees)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.green)
+                            Text((total > 0 ? Double(truncating: (entry.total / total) as NSDecimalNumber) : 0), format: .percent.precision(.fractionLength(0)))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } label: {
+                        Label(entry.source.rawValue, systemImage: entry.source.systemImage)
+                    }
+                }
+            }
+        }
+    }
+
     private var summarySection: some View {
         let income = incomes.totalAmount
         let spent = expenses.spentAmount
-        let pending = expenses.plannedAmount
+        let pending = expenses.plannedAmount + scheduledFixedExpenses
         let loanedOut = loansLent.totalAmount
         let cashRepaid = cashRepayments.totalAmount
         // A plan should hold back money for EMIs and premiums that are still to be paid.
-        let balance = income - spent - pending - loanedOut + cashRepaid
+        let borrowedIn = borrowed.reduce(Decimal(0)) { $0 + $1.amount }
+        let paidBack = borrowPayments.totalAmount
+        let balance = income - spent - pending - loanedOut + cashRepaid + borrowedIn - paidBack
         // When a card was used, the main figures count what left your cash. Credit card purchases wait for the bill.
         let cash = cashView
         let usesCash = cash.hasCardActivity
@@ -244,9 +289,17 @@ private struct BudgetSummaryList: View {
                 }
             }
 
-            if pending > 0 {
+            if scheduledFixedExpenses > 0 {
+                LabeledContent("Scheduled Fixed Expenses") {
+                    Text(scheduledFixedExpenses, format: .rupees)
+                        .foregroundStyle(.orange)
+                        .fontWeight(.semibold)
+                }
+            }
+
+            if expenses.plannedAmount > 0 {
                 LabeledContent("Pending EMIs & Premiums") {
-                    Text(pending, format: .rupees)
+                    Text(expenses.plannedAmount, format: .rupees)
                         .foregroundStyle(.orange)
                         .fontWeight(.semibold)
                 }
@@ -264,6 +317,22 @@ private struct BudgetSummaryList: View {
                 LabeledContent("Cash Loans Repaid") {
                     Text(cashRepaid, format: .rupees)
                         .foregroundStyle(.green)
+                        .fontWeight(.semibold)
+                }
+            }
+
+            if borrowedIn > 0 {
+                LabeledContent("Borrowed from Friends") {
+                    Text(borrowedIn, format: .rupees)
+                        .foregroundStyle(.green)
+                        .fontWeight(.semibold)
+                }
+            }
+
+            if paidBack > 0 {
+                LabeledContent("Repaid to Friends") {
+                    Text(paidBack, format: .rupees)
+                        .foregroundStyle(.orange)
                         .fontWeight(.semibold)
                 }
             }

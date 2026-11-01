@@ -161,7 +161,7 @@ struct EMIFormView: View {
     private func save() {
         guard let monthlyAmount, isValid else { return }
 
-        let trimmedBank = accountType.usesBank ? bankName.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        let trimmedBank = accountType.usesBank ? BankName.normalized(bankName) : ""
         let card = accountType.usesCard ? cardLastFour : ""
 
         let target: EMI

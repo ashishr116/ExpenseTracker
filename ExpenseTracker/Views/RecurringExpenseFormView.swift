@@ -41,7 +41,7 @@ struct RecurringExpenseFormView: View {
     }
 
     private var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
-    private var trimmedBank: String { bankName.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var trimmedBank: String { BankName.normalized(bankName) }
 
     private var isValid: Bool {
         guard !trimmedTitle.isEmpty, let amount, amount > 0 else { return false }

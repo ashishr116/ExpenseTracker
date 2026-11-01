@@ -552,15 +552,15 @@ struct LoanFormView: View {
         let isCard = method == .card
         // A card loan keeps the bank and card digits; a personal loan keeps just the lender.
         let trimmedBank = method.isOnMyName
-            ? bankName.trimmingCharacters(in: .whitespacesAndNewlines)
-            : (method == .cash ? paidFrom : "")
+            ? BankName.normalized(bankName)
+            : (method == .cash ? BankName.normalized(paidFrom) : "")
         let card = isCard ? cardLastFour : ""
 
         // Auto-save card to stored PaymentCard
         if isCard && (!trimmedBank.isEmpty || !card.isEmpty) {
             let alreadySaved = storedCards.contains {
                 $0.accountType == accountType &&
-                $0.bankName.caseInsensitiveCompare(trimmedBank) == .orderedSame &&
+                BankName.matches($0.bankName, trimmedBank) &&
                 $0.cardLastFour == card
             }
             if !alreadySaved {
@@ -572,6 +572,10 @@ struct LoanFormView: View {
                 modelContext.insert(saved)
                 if accountType == .creditCard { cardToAsk = saved }
             }
+        }
+        // A friend's purchase on a saved credit card must have an Account to update its card balance.
+        if accountType == .creditCard {
+            CardSync.sync(in: modelContext)
         }
 
         if let loan {

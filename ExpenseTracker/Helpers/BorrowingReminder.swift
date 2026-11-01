@@ -53,3 +53,91 @@ enum BorrowingReminder {
         }
     }
 }
+
+/// A confirmation message informing a friend about borrowed money.
+struct BorrowingMessage: Identifiable {
+    let friendName: String
+    let phone: String
+    let amount: Decimal
+    let date: Date
+    let bankName: String
+    let dueDate: Date?
+    let note: String
+
+    var id: String { friendName + phone + "\(amount)" + "\(date.timeIntervalSince1970)" }
+
+    init(borrowing: Borrowing) {
+        self.friendName = borrowing.friendName
+        self.phone = borrowing.friendPhone
+        self.amount = borrowing.amount
+        self.date = borrowing.date
+        self.bankName = borrowing.bankName
+        self.dueDate = borrowing.dueDate
+        self.note = borrowing.note
+    }
+
+    init(
+        friendName: String,
+        phone: String = "",
+        amount: Decimal,
+        date: Date = .now,
+        bankName: String = "",
+        dueDate: Date? = nil,
+        note: String = ""
+    ) {
+        self.friendName = friendName
+        self.phone = phone
+        self.amount = amount
+        self.date = date
+        self.bankName = bankName
+        self.dueDate = dueDate
+        self.note = note
+    }
+
+    /// What form the borrow was: Cash or a transfer into a specific bank.
+    var formDescription: String {
+        let trimmed = bankName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Cash" : "Bank transfer into \(trimmed)"
+    }
+
+    /// Formatted message text informing the friend.
+    var messageBody: String {
+        let amountText = amount.formatted(.rupees)
+        let dateText = date.formatted(.dateTime.day().month(.wide).year())
+        var lines: [String] = []
+
+        let name = friendName.trimmingCharacters(in: .whitespacesAndNewlines)
+        lines.append("Hi \(name.isEmpty ? "Friend" : name),")
+        lines.append("Confirming that I received \(amountText) from you on \(dateText) via \(formDescription).")
+        lines.append("")
+
+        if let dueDate {
+            let dueText = dueDate.formatted(.dateTime.day().month(.wide).year())
+            lines.append("🗓️ Promised return date: \(dueText)")
+        } else {
+            lines.append("🗓️ Promised to return soon.")
+        }
+
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedNote.isEmpty {
+            lines.append("📝 Note: \(trimmedNote)")
+        }
+
+        lines.append("")
+        lines.append("Thanks a lot for the support!")
+        return lines.joined(separator: "\n")
+    }
+
+    /// Link opening WhatsApp with the message pre-filled.
+    var whatsAppURL: URL? {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "wa.me"
+        var digits = phone.filter(\.isNumber)
+        if digits.hasPrefix("0") { digits.removeFirst() }
+        if digits.count == 10 { digits = "91" + digits }
+        components.path = digits.isEmpty ? "/" : "/\(digits)"
+        components.queryItems = [URLQueryItem(name: "text", value: messageBody)]
+        return components.url
+    }
+}

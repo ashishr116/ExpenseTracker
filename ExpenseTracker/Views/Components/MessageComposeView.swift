@@ -104,3 +104,60 @@ struct ReminderSheet: View {
         }
     }
 }
+
+/// Presents the Messages composer for a borrowing confirmation message, or fallback preview.
+struct BorrowingMessageSheet: View {
+    let message: BorrowingMessage
+    var onDismiss: () -> Void = {}
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        if MessageComposeView.canSendText {
+            MessageComposeView(
+                recipients: message.phone.isEmpty ? [] : [message.phone],
+                body: message.messageBody
+            ) { _ in
+                dismiss()
+                onDismiss()
+            }
+            .ignoresSafeArea()
+        } else {
+            fallback
+        }
+    }
+
+    private var fallback: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text(message.messageBody)
+                        .textSelection(.enabled)
+                } header: {
+                    Text(message.phone.isEmpty ? "To \(message.friendName)" : "To \(message.friendName) · \(message.phone)")
+                } footer: {
+                    Text("This device can't send text messages. Share or copy the confirmation instead.")
+                }
+
+                Section {
+                    ShareLink(item: message.messageBody) {
+                        Label("Share Confirmation", systemImage: "square.and.arrow.up")
+                    }
+                    Button("Copy Text", systemImage: "doc.on.doc") {
+                        UIPasteboard.general.string = message.messageBody
+                    }
+                }
+            }
+            .navigationTitle("Borrow Confirmation")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                        onDismiss()
+                    }
+                }
+            }
+        }
+    }
+}

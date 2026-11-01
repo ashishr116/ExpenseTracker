@@ -54,4 +54,4 @@ Kept on `PaymentCard` (`statementDay` and `dueDay`, 0 when not set), so the Acco
 
 ## `MonthlySavings.swift`
 - `MonthlySavings`: one record per finished month, noting the leftover and how much was moved to savings.
-- `SavingsSweep`: moves each finished month's leftover into the chosen savings account, as a transfer when accounts exist, or into a savings holding otherwise.
+- `SavingsSweep`: moves each finished month's leftover (income, less spending and money lent, plus loans repaid, plus money borrowed from friends, less what you paid back to them) into the chosen savings account, as a transfer when accounts exist, or into a savings holding otherwise.

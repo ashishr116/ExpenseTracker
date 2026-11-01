@@ -202,7 +202,7 @@ struct InsuranceFormView: View {
         guard let premiumAmount, isValid else { return }
 
         let trim: (String) -> String = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        let bank = accountType.usesBank ? trim(bankName) : ""
+        let bank = accountType.usesBank ? BankName.normalized(bankName) : ""
         let card = accountType.usesCard ? cardLastFour : ""
 
         let target: InsurancePolicy

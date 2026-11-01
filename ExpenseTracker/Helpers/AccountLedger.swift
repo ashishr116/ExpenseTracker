@@ -59,15 +59,12 @@ struct AccountLedger {
         self.accounts = accounts
         self.now = now
 
-        func sameBank(_ a: String, _ b: String) -> Bool {
-            !a.isEmpty && a.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(b.trimmingCharacters(in: .whitespaces)) == .orderedSame
-        }
+        func sameBank(_ a: String, _ b: String) -> Bool { BankName.matches(a, b) }
 
-        /// The credit card with this bank and these last four digits. A card saved without digits matches any.
+        /// The credit card with this bank and these last four digits.
         func creditCard(bank: String, lastFour: String) -> Account? {
             let cards = ordered.filter { $0.kind == .creditCard && sameBank($0.bankName, bank) }
-            return cards.first { !$0.cardLastFour.isEmpty && $0.cardLastFour == lastFour }
-                ?? cards.first { $0.cardLastFour.isEmpty }
+            return cards.first { $0.cardLastFour == String(lastFour.filter(\.isNumber).suffix(4)) }
         }
 
         func account(for expense: Expense) -> Account? {
@@ -197,7 +194,7 @@ struct AccountLedger {
                         id: "transfer-out-\(transfer.persistentModelID)",
                         date: transfer.date,
                         title: adjustment
-                            ? "Adjustment"
+                            ? (transfer.note.hasPrefix("Invested in ") ? "Invested" : "Adjustment")
                             : (transfer.toAccount?.kind.isLiability == true
                                 ? "Paid \(transfer.toAccount?.displayName ?? "card") bill"
                                 : "Transfer to \(transfer.toAccount?.displayName ?? "account")"),

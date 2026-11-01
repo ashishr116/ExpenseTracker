@@ -131,8 +131,16 @@ enum SavingsSweep {
             predicate: #Predicate { $0.date >= start && $0.date < end }
         ))) ?? []
         let cashRepaid = repayments.filter(\.isCashInflow).totalAmount
+        // Money borrowed from friends comes in, and paying it back goes out, as in the Budget's remaining figure.
+        let borrowed = ((try? context.fetch(FetchDescriptor<Borrowing>(
+            predicate: #Predicate { $0.date >= start && $0.date < end }
+        ))) ?? []).reduce(Decimal(0)) { $0 + $1.amount }
+        let paidBack = ((try? context.fetch(FetchDescriptor<BorrowingPayment>(
+            predicate: #Predicate { $0.date >= start && $0.date < end }
+        ))) ?? []).totalAmount
 
-        return incomes.totalAmount - expenses.totalAmount - lent.filter { $0.method == .cash }.totalAmount + cashRepaid
+        return incomes.totalAmount - expenses.totalAmount - lent.filter { $0.method == .cash }.totalAmount
+            + cashRepaid + borrowed - paidBack
     }
 
     // MARK: Sweeping

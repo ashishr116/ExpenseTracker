@@ -61,8 +61,8 @@ final class Account {
     ) {
         self.name = name
         self.kindRaw = kind.rawValue
-        self.bankName = bankName
-        self.cardLastFour = cardLastFour
+        self.bankName = BankName.normalized(bankName)
+        self.cardLastFour = String(cardLastFour.filter(\.isNumber).suffix(4))
         self.openingBalancePaise = Money.paise(from: openingBalance)
         self.openingDate = openingDate
     }

@@ -14,6 +14,8 @@ struct LoansView: View {
     @Query(sort: \Loan.date, order: .reverse) private var loans: [Loan]
     /// Your own EMIs, for the PDF summary.
     @Query private var emis: [EMI]
+    /// Borrowed amounts, to show cross-summary in statements & summary PDF.
+    @Query(sort: \Borrowing.date, order: .reverse) private var borrowings: [Borrowing]
 
     @State private var isAddingLoan = false
     /// A saved friend a new loan is being added for, with their name and number filled in.
@@ -21,6 +23,8 @@ struct LoansView: View {
     @State private var editingLoan: Loan?
     /// The loan a friend is paying part of back.
     @State private var repaymentLoan: Loan?
+    /// The friend and their card loans whose bill you are paying yourself to move to cash.
+    @State private var coveringCardFriend: FriendCardLoans?
     /// The payment reminder currently being composed.
     @State private var reminder: LoanReminder?
 
@@ -68,7 +72,24 @@ struct LoansView: View {
                     if !outstandingByFriend.isEmpty {
                         Section {
                             ForEach(outstandingByFriend, id: \.friend) { entry in
+                                let cardLoans = entry.loans.filter { $0.method == .card && !$0.isRepaid }
                                 DisclosureGroup {
+                                    if !cardLoans.isEmpty {
+                                        Button {
+                                            coveringCardFriend = FriendCardLoans(friendName: entry.friend, loans: cardLoans)
+                                        } label: {
+                                            HStack {
+                                                Label("I Paid Card Bill for \(entry.friend)", systemImage: "creditcard.badge.arrow.forward")
+                                                    .font(.subheadline.weight(.medium))
+                                                Spacer()
+                                                Text("Move to Cash (\(cardLoans.outstandingTotal.formatted(.rupees)))")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            .foregroundStyle(.purple)
+                                        }
+                                    }
+
                                     ForEach(entry.loans) { loan in
                                         loanButton(loan)
                                             .swipeActions {
@@ -81,6 +102,13 @@ struct LoansView: View {
                                                     repaymentLoan = loan
                                                 }
                                                 .tint(.teal)
+
+                                                if loan.method == .card {
+                                                    Button("I Paid Card", systemImage: "creditcard.badge.arrow.forward") {
+                                                        coveringCardFriend = FriendCardLoans(friendName: entry.friend, loans: [loan])
+                                                    }
+                                                    .tint(.purple)
+                                                }
                                             }
                                             .swipeActions(edge: .leading) {
                                                 Button("Remind", systemImage: "message") {
@@ -93,6 +121,8 @@ struct LoansView: View {
                                     FriendSummaryRow(
                                         friend: entry.friend,
                                         loans: entry.loans,
+                                        hasCardLoans: !cardLoans.isEmpty,
+                                        onCoverCard: { coveringCardFriend = FriendCardLoans(friendName: entry.friend, loans: cardLoans) },
                                         onRemind: { remind(friend: entry.friend, loans: entry.loans) },
                                         onAddLoan: { addingLoanFor = friendDetails(for: entry.friend) }
                                     )
@@ -101,7 +131,7 @@ struct LoansView: View {
                         } header: {
                             Text("Outstanding")
                         } footer: {
-                            Text("Tap the message button to send a friend a reminder for everything they owe. Swipe a loan right to remind about just that one, or left to record a part payment or mark it repaid.")
+                            Text("Tap the message button to send a friend a reminder. For card loans, tap the purple card button or swipe left to record that you covered the bill and move it to cash.")
                         }
                     }
 
@@ -125,11 +155,11 @@ struct LoansView: View {
             ToolbarItem(placement: .primaryAction) {
                 Menu("More", systemImage: "ellipsis.circle") {
                     Button("Share PDF Summary", systemImage: "doc.richtext") {
-                        if let url = LoanStatementPDF.summary(loans: loans, emis: emis) {
+                        if let url = LoanStatementPDF.summary(loans: loans, emis: emis, borrowings: borrowings) {
                             SharePresenter.present(urls: [url])
                         }
                     }
-                    .disabled(loans.isEmpty && emis.isEmpty)
+                    .disabled(loans.isEmpty && emis.isEmpty && borrowings.isEmpty)
                 }
             }
             ToolbarItem(placement: .primaryAction) {
@@ -150,6 +180,9 @@ struct LoansView: View {
         .sheet(item: $repaymentLoan) { loan in
             RepaymentFormView(loan: loan)
         }
+        .sheet(item: $coveringCardFriend) { item in
+            CoverCardLoanSheet(friendName: item.friendName, cardLoans: item.loans)
+        }
         .sheet(item: $reminder) { reminder in
             ReminderSheet(reminder: reminder) {
                 // Record when the friend was last reminded.
@@ -163,7 +196,10 @@ struct LoansView: View {
             Button("WhatsApp", systemImage: "bubble.left.and.text.bubble.right") { start(channel: .whatsApp) }
             Button("PDF Statement", systemImage: "doc.richtext") {
                 // Opens the share sheet, where it can be sent over WhatsApp, Messages or anything else.
-                if let url = LoanStatementPDF.statement(for: waitingFriend, loans: waitingLoans) {
+                let friendLoans = loans.filter {
+                    $0.friendName.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(waitingFriend.trimmingCharacters(in: .whitespaces)) == .orderedSame
+                }
+                if let url = LoanStatementPDF.statement(for: waitingFriend, loans: friendLoans.isEmpty ? waitingLoans : friendLoans, borrowings: borrowings) {
                     SharePresenter.present(urls: [url])
                 }
             }
@@ -285,11 +321,20 @@ struct LoansView: View {
     }
 }
 
+/// Helper identifier for opening the card loan cover sheet for a friend.
+struct FriendCardLoans: Identifiable {
+    let id = UUID()
+    let friendName: String
+    let loans: [Loan]
+}
+
 /// A friend's name with how many loans they have and the total they owe.
-/// Pass `onRemind` to show a "send reminder" button, and `onAddLoan` to show a "+" for lending to them again.
+/// Pass `onCoverCard` to show a "cover card bill" button, `onRemind` to show a "send reminder" button, and `onAddLoan` to show a "+" for lending to them again.
 struct FriendSummaryRow: View {
     let friend: String
     let loans: [Loan]
+    var hasCardLoans: Bool = false
+    var onCoverCard: (() -> Void)? = nil
     var onRemind: (() -> Void)? = nil
     var onAddLoan: (() -> Void)? = nil
 
@@ -317,6 +362,14 @@ struct FriendSummaryRow: View {
             Spacer()
             Text(loans.outstandingTotal, format: .rupees)
                 .fontWeight(.semibold)
+            if hasCardLoans, let onCoverCard {
+                Button("I Paid Card Bill for \(friend)", systemImage: "creditcard.badge.arrow.forward", action: onCoverCard)
+                    .labelStyle(.iconOnly)
+                    .font(.title2)
+                    .foregroundStyle(.purple)
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("I Paid Card Bill for \(friend)")
+            }
             if let onAddLoan {
                 Button("Add Another Loan for \(friend)", systemImage: "plus.circle.fill", action: onAddLoan)
                     .labelStyle(.iconOnly)
@@ -398,9 +451,146 @@ struct LoanRow: View {
     }
 }
 
+/// Sheet for recording that you covered/paid the credit card bill for a friend's card loan,
+/// which marks the card loan repaid and moves the amount to a cash loan owed to you.
+struct CoverCardLoanSheet: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    let friendName: String
+    let cardLoans: [Loan]
+
+    @Query(sort: \Account.createdAt) private var allAccounts: [Account]
+
+    @State private var amount: Decimal?
+    @State private var fromUID: String = ""
+    @State private var date = Date.now
+    @State private var note: String = "Card paid for loan"
+
+    init(friendName: String, cardLoans: [Loan]) {
+        self.friendName = friendName
+        self.cardLoans = cardLoans
+        _amount = State(initialValue: cardLoans.outstandingTotal > 0 ? cardLoans.outstandingTotal : nil)
+    }
+
+    private var eligibleAccounts: [Account] {
+        allAccounts.filter { !$0.isArchived && !$0.kind.isLiability }
+    }
+
+    private var fromAccount: Account? {
+        eligibleAccounts.first { $0.uid == fromUID }
+    }
+
+    private var primaryCardLoan: Loan? {
+        cardLoans.first
+    }
+
+    private var isValid: Bool {
+        guard let amount, amount > 0, amount <= cardLoans.outstandingTotal, fromAccount != nil else { return false }
+        return true
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Card Loan Details") {
+                    LabeledContent("Friend", value: friendName)
+                    LabeledContent("Owed on Card", value: cardLoans.outstandingTotal.formatted(.rupees))
+                    if cardLoans.count > 1 {
+                        LabeledContent("Loans Count", value: "\(cardLoans.count) card loans")
+                    } else if let loan = primaryCardLoan {
+                        if let cardDesc = loan.cardDescription {
+                            LabeledContent("Card", value: cardDesc)
+                        }
+                    }
+                }
+
+                Section {
+                    TextField("Amount Paid", value: $amount, format: .rupees)
+                        .keyboardType(.decimalPad)
+                        .font(.title2.weight(.semibold))
+
+                    if eligibleAccounts.isEmpty {
+                        Text("Add a bank account or cash first so there is somewhere to pay from.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("Paid From", selection: $fromUID) {
+                            ForEach(eligibleAccounts) { account in
+                                Text(account.displayName).tag(account.uid)
+                            }
+                        }
+                    }
+
+                    DatePicker("Date Paid", selection: $date, displayedComponents: .date)
+                    TextField("Note", text: $note)
+                } header: {
+                    Text("Payment You Made")
+                } footer: {
+                    if let amount, amount > cardLoans.outstandingTotal {
+                        Text("That's more than the \(cardLoans.outstandingTotal.formatted(.rupees)) owed on the card.")
+                            .foregroundStyle(.red)
+                    } else {
+                        Text("Takes \(amount?.formatted(.rupees) ?? "this") off the card loan, lowers \(fromAccount?.displayName ?? "that account") once, and creates a Cash loan to \(friendName), so they now owe you directly. Pay the rest of the card bill from the card's Pay Bill, without their share.")
+                    }
+                }
+
+            }
+            .navigationTitle("I Paid Card Bill")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", action: save)
+                        .disabled(!isValid)
+                }
+            }
+            .onAppear {
+                if fromUID.isEmpty {
+                    fromUID = eligibleAccounts.first?.uid ?? ""
+                }
+            }
+        }
+    }
+
+    private func save() {
+        guard let amount, isValid else { return }
+        var left = amount
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        let repaymentNote = trimmedNote.isEmpty ? "Card paid for loan" : trimmedNote
+
+        for loan in cardLoans.sorted(by: { $0.date < $1.date }) where left > 0 {
+            let part = min(left, loan.outstandingAmount)
+            guard part > 0 else { continue }
+            loan.recordRepayment(part, on: date, note: repaymentNote, bankName: "", in: modelContext)
+            left -= part
+        }
+
+        let covered = amount - left
+        guard covered > 0 else { return }
+
+        let phone = cardLoans.first(where: { !$0.friendPhone.isEmpty })?.friendPhone ?? ""
+        let fromAcc = fromAccount
+        let newCashLoan = Loan(
+            amount: covered,
+            friendName: friendName,
+            friendPhone: phone,
+            note: repaymentNote,
+            date: date,
+            method: .cash,
+            bankName: fromAcc?.kind == .bank ? (fromAcc?.bankName ?? "") : ""
+        )
+        modelContext.insert(newCashLoan)
+
+        try? modelContext.save()
+        dismiss()
+    }
+}
+
 #Preview {
     NavigationStack {
         LoansView()
     }
-    .modelContainer(for: Loan.self, inMemory: true)
 }

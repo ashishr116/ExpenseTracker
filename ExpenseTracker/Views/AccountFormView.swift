@@ -38,7 +38,7 @@ struct AccountFormView: View {
         _isArchived = State(initialValue: account?.isArchived ?? false)
     }
 
-    private var trimmedBank: String { bankName.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var trimmedBank: String { BankName.normalized(bankName) }
 
     private var isValid: Bool {
         guard openingBalance != nil else { return false }

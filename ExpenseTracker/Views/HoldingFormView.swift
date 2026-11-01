@@ -14,6 +14,7 @@ struct HoldingFormView: View {
 
     /// All holdings, used to suggest platforms/banks you've used before.
     @Query private var allHoldings: [Holding]
+    @Query(sort: \Account.createdAt) private var allAccounts: [Account]
 
     let holding: Holding?
 
@@ -27,6 +28,8 @@ struct HoldingFormView: View {
     @State private var hasMaturity: Bool
     @State private var maturityDate: Date
     @State private var note: String
+    /// The cash or bank account the money for a new investment came out of. Empty means none.
+    @State private var paidFromUID = ""
 
     init(holding: Holding? = nil) {
         self.holding = holding
@@ -55,6 +58,16 @@ struct HoldingFormView: View {
 
     private var isValid: Bool {
         !trimmedName.isEmpty && finalValue > 0
+    }
+
+    /// Cash and bank accounts a new investment can be paid from.
+    private var paymentAccounts: [Account] {
+        allAccounts.filter { !$0.isArchived && !$0.kind.isLiability }
+    }
+
+    /// Paying from an account only applies to a new investment with an amount put in.
+    private var offersPaidFrom: Bool {
+        holding == nil && !kind.isDebt && kind.tracksInvested && (investedAmount ?? 0) > 0 && !paymentAccounts.isEmpty
     }
 
     /// Suggested platforms: common ones for this type plus any you've used before.
@@ -115,6 +128,21 @@ struct HoldingFormView: View {
                 } footer: {
                     if kind.tracksInvested {
                         Text("Leave \(kind.valueLabel) empty to use the \(kind.investedLabel.lowercased()). Update it whenever you check your app or bank.")
+                    }
+                }
+
+                if offersPaidFrom {
+                    Section {
+                        Picker("Paid From", selection: $paidFromUID) {
+                            Text("Not from an account").tag("")
+                            ForEach(paymentAccounts) { account in
+                                Text(account.displayName).tag(account.uid)
+                            }
+                        }
+                    } header: {
+                        Text("Where The Money Came From")
+                    } footer: {
+                        Text("Choose the account you paid with, and its balance goes down by the amount you put in. Without this, the money is counted twice in your net worth: once in the account and again here.")
                     }
                 }
 
@@ -191,6 +219,12 @@ struct HoldingFormView: View {
             holding.note = trimmedNote
             holding.updatedAt = .now
         } else {
+            // The money put in leaves the account it was paid from. It isn't spending, so it is a one-sided transfer.
+            if offersPaidFrom, let account = paymentAccounts.first(where: { $0.uid == paidFromUID }), invested > 0 {
+                let payment = Transfer(amount: invested, date: .now, note: "Invested in \(trimmedName)")
+                modelContext.insert(payment)
+                payment.fromAccount = account
+            }
             modelContext.insert(
                 Holding(
                     name: trimmedName,
@@ -211,5 +245,5 @@ struct HoldingFormView: View {
 
 #Preview {
     HoldingFormView()
-        .modelContainer(for: Holding.self, inMemory: true)
+        .modelContainer(for: [Holding.self, Account.self, Transfer.self], inMemory: true)
 }

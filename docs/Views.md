@@ -1,21 +1,22 @@
 # Views (screens and forms)
 
 ## Daily, Monthly and Budget tabs
-- **`DailyView.swift`**: every expense, income, loan and card bill payment for one day, with totals. Shows the backup reminder banner when one is due, and opens the backup screen from it.
+- **`DailyView.swift`**: every expense, income, loan, borrowed-money entry and card bill payment for one day, with totals. Shows the backup reminder banner when one is due, and opens the backup screen from it.
 - **`BackupNudgeBanner.swift`**: the "Back up your data" note, with Back Up Now and Later buttons.
 - **`MonthlyView.swift`**: the month in two tabs. **Cash** shows income, spent, credit card figures and balance. **Purchases** lists the month's entries grouped by day.
 - **`BudgetView.swift`**: the Budget tab. A switcher at the top picks one of five pages and builds only that one. Holds the Summary page and the income and expense breakdowns.
-- **`BudgetInsightViews.swift`**: the other Budget pages: Recap (opens with a bar chart of income, spending, last month's spending and what was kept), Limits, Fixed vs variable, Bank vs credit card vs cash, the category pie chart, and Saved this month.
+- **`BudgetInsightViews.swift`**: the other Budget pages: Recap (opens with a bar chart of income, spending, last month's spending and what was kept), Limits, Fixed Expenses vs variable, Bank vs credit card vs cash, the category pie chart, and Saved this month. The Summary lists income by source. Fixed Expenses, Bank/Card and Chart each show the month's income too: what is left after expenses, income by bank, and income by source.
 - **`BudgetLimitFormView.swift`**: set, change or remove a category's monthly limit.
 
 ## Entry forms
 - **`ExpenseFormView.swift`**: add or edit an expense, with category (and a custom name under Other), payment type and saved-card chips.
 - **`IncomeFormView.swift`**: add or edit income.
 - **`LoanFormView.swift`**: lend money to a friend by cash, your card (one-off or EMI), or a personal loan. Instalments, monthly reminder, already-paid months, and sending by message or WhatsApp.
-- **`RepaymentFormView.swift`**: record a full or part payment from a friend.
+- **`SplitBillFormView.swift`**: split a bill from the + menu. Enter the total, who paid (you or a friend), how it was paid, and who shares it, equally or with custom amounts. When you paid, your share is an expense and each friend's share becomes a loan with the note "Split: ...", from the card or bank you paid with. When a friend paid, your share is an expense plus a debt in Borrowed ("I Owe Them"), or just an expense if you settled it now.
+- **`RepaymentFormView.swift`**: record a full or part payment from a friend. For a card loan you can instead record that you paid the card bill yourself, which moves their share to a cash loan. That lowers your account once: don't also pay their share through Pay Bill.
 - **`EMIFormView.swift`**: add or edit an EMI plan, including how many instalments are already paid.
 - **`InsuranceFormView.swift`**: add or edit an insurance plan, including premiums already paid.
-- **`HoldingFormView.swift`**: add or edit an investment, savings balance or debt.
+- **`HoldingFormView.swift`**: add or edit an investment, savings balance or debt. A new investment can be marked as paid from a cash or bank account, which lowers that account by the amount put in so net worth doesn't count it twice.
 - **`AccountFormView.swift`**: add or edit a bank, cash or credit-card account.
 - **`TransferFormView.swift`**: move money between accounts or pay a card bill. When paying a card, a Friends' Share section lets you mark a friend's part as paid by you: it comes off their card loan and becomes a cash loan to them, noted "Card paid for loan".
 - **`CardFormView.swift`**: add or edit a saved card with full details.

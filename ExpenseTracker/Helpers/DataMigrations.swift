@@ -15,6 +15,7 @@ enum DataMigrations {
         EMI.migratePaidStateIfNeeded(in: context)
         InsurancePolicy.migratePaidStateIfNeeded(in: context)
         moveCardSecretsToKeychain(in: context)
+        normalizeBankNames(in: context)
         try? context.save()
     }
 
@@ -25,6 +26,43 @@ enum DataMigrations {
         guard let cards = try? context.fetch(FetchDescriptor<PaymentCard>()) else { return }
         cards.forEach { $0.moveSecretsToKeychain() }
         CardVault.purge(keeping: Set(cards.map(\.vaultID).filter { !$0.isEmpty }))
+    }
+
+    /// Makes older records use the same uppercase bank spelling as newly saved records.
+    private static func normalizeBankNames(in context: ModelContext) {
+        (try? context.fetch(FetchDescriptor<Account>()))?.forEach {
+            $0.bankName = BankName.normalized($0.bankName)
+            $0.cardLastFour = String($0.cardLastFour.filter(\.isNumber).suffix(4))
+        }
+        (try? context.fetch(FetchDescriptor<PaymentCard>()))?.forEach {
+            $0.bankName = BankName.normalized($0.bankName)
+            $0.cardLastFour = String($0.cardLastFour.filter(\.isNumber).suffix(4))
+        }
+        (try? context.fetch(FetchDescriptor<Expense>()))?.forEach {
+            $0.bankName = BankName.normalized($0.bankName)
+            $0.cardLastFour = String($0.cardLastFour.filter(\.isNumber).suffix(4))
+        }
+        (try? context.fetch(FetchDescriptor<Loan>()))?.forEach {
+            $0.bankName = BankName.normalized($0.bankName)
+            $0.cardLastFour = String($0.cardLastFour.filter(\.isNumber).suffix(4))
+        }
+        (try? context.fetch(FetchDescriptor<Income>()))?.forEach { $0.bankName = BankName.normalized($0.bankName) }
+        (try? context.fetch(FetchDescriptor<Borrowing>()))?.forEach { $0.bankName = BankName.normalized($0.bankName) }
+        (try? context.fetch(FetchDescriptor<BorrowingPayment>()))?.forEach { $0.bankName = BankName.normalized($0.bankName) }
+        (try? context.fetch(FetchDescriptor<LoanRepayment>()))?.forEach { $0.bankName = BankName.normalized($0.bankName) }
+        (try? context.fetch(FetchDescriptor<MonthlySavings>()))?.forEach { $0.bankName = BankName.normalized($0.bankName) }
+        (try? context.fetch(FetchDescriptor<RecurringExpense>()))?.forEach {
+            $0.bankName = BankName.normalized($0.bankName)
+            $0.cardLastFour = String($0.cardLastFour.filter(\.isNumber).suffix(4))
+        }
+        (try? context.fetch(FetchDescriptor<EMI>()))?.forEach {
+            $0.bankName = BankName.normalized($0.bankName)
+            $0.cardLastFour = String($0.cardLastFour.filter(\.isNumber).suffix(4))
+        }
+        (try? context.fetch(FetchDescriptor<InsurancePolicy>()))?.forEach {
+            $0.bankName = BankName.normalized($0.bankName)
+            $0.cardLastFour = String($0.cardLastFour.filter(\.isNumber).suffix(4))
+        }
     }
 
     /// A loan marked repaid before part payments existed gets one repayment for its full amount,

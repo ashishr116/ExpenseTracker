@@ -81,7 +81,7 @@ struct ContentView: View {
 
 /// Which add-entry sheet is currently presented from the + menu.
 private enum AddSheet: Identifiable {
-    case expense, income, loan
+    case expense, income, loan, split
 
     var id: Self { self }
 }
@@ -106,6 +106,9 @@ private struct AddEntryToolbar: ViewModifier {
                         Button("Loan", systemImage: "person.2") {
                             addSheet = .loan
                         }
+                        Button("Split a Bill", systemImage: "divide.circle") {
+                            addSheet = .split
+                        }
                     } label: {
                         Image(systemName: "plus")
                             .accessibilityLabel("Add")
@@ -117,6 +120,7 @@ private struct AddEntryToolbar: ViewModifier {
                 case .expense: ExpenseFormView(defaultDate: defaultDate)
                 case .income: IncomeFormView(defaultDate: defaultDate)
                 case .loan: LoanFormView(defaultDate: defaultDate)
+                case .split: SplitBillFormView(defaultDate: defaultDate)
                 }
             }
     }

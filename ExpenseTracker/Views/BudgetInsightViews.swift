@@ -20,16 +20,30 @@ private func share(_ part: Decimal, of whole: Decimal) -> Double {
 
 /// Spending split into fixed (rent, EMIs, groceries and similar) and variable (everything else).
 struct BudgetFixedVariableView: View {
+    let month: Date
     @Query private var monthExpenses: [Expense]
+    @Query private var monthIncomes: [Income]
+    @Query private var recurringPlans: [RecurringExpense]
 
     init(month: Date) {
+        self.month = month
         let range = Calendar.current.monthRange(containing: month)
         let start = range.lowerBound
         let end = range.upperBound
+        _monthIncomes = Query(filter: #Predicate<Income> { $0.date >= start && $0.date < end })
         _monthExpenses = Query(filter: #Predicate<Expense> { $0.date >= start && $0.date < end }, sort: \Expense.date, order: .reverse)
     }
 
-    private var expenses: [Expense] { monthExpenses.filter { !$0.isPlanned } }
+    /// Fixed commitments include scheduled EMIs and premiums even before they are marked paid.
+    private var expenses: [Expense] { monthExpenses }
+
+    private var scheduledRecurringPlans: [RecurringExpense] {
+        recurringPlans.filter { $0.hasUnpostedCommitment(in: month) }
+    }
+
+    private var scheduledRecurringTotal: Decimal {
+        scheduledRecurringPlans.reduce(0) { $0 + $1.amount }
+    }
 
     private struct CategoryTotal: Identifiable {
         let category: ExpenseCategory
@@ -49,30 +63,60 @@ struct BudgetFixedVariableView: View {
     var body: some View {
         let fixed = totals(fixed: true)
         let variable = totals(fixed: false)
-        let fixedTotal = fixed.reduce(Decimal(0)) { $0 + $1.total }
+        let fixedTotal = fixed.reduce(Decimal(0)) { $0 + $1.total } + scheduledRecurringTotal
         let variableTotal = variable.reduce(Decimal(0)) { $0 + $1.total }
         let whole = fixedTotal + variableTotal
+        let income = monthIncomes.totalAmount
 
         List {
             Section {
-                LabeledContent("Fixed") {
+                if income > 0 {
+                    LabeledContent("Income") {
+                        Text(income, format: .rupees)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.green)
+                    }
+                }
+                LabeledContent("Fixed Expenses") {
                     Text(fixedTotal, format: .rupees).fontWeight(.semibold)
                 }
-                LabeledContent("Variable") {
+                LabeledContent("Variable Expenses") {
                     Text(variableTotal, format: .rupees).fontWeight(.semibold)
                 }
-                if whole > 0 {
+                if income > 0 {
+                    LabeledContent("Left After Expenses") {
+                        Text(income - whole, format: .rupees)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(income - whole >= 0 ? Color.green : Color.red)
+                    }
+                    ProgressView(value: min(1, share(fixedTotal, of: income)))
+                    Text("\(share(fixedTotal, of: income).formatted(.percent.precision(.fractionLength(0)))) of your income goes to fixed expenses")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if whole > 0 {
                     ProgressView(value: share(fixedTotal, of: whole))
                     Text("\(share(fixedTotal, of: whole).formatted(.percent.precision(.fractionLength(0)))) of your spending is fixed")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             } footer: {
-                Text("Fixed is rent, EMIs, insurance, groceries, maid, bills and subscriptions. Everything else is variable, and is where you can cut back.")
+                Text("Fixed expenses include rent, subscriptions, scheduled EMIs and insurance premiums before payment is recorded. Everything else is variable, and is where you can cut back.")
             }
 
-            group("Fixed Spending", fixed, total: fixedTotal, whole: whole)
-            group("Variable Spending", variable, total: variableTotal, whole: whole)
+            if !scheduledRecurringPlans.isEmpty {
+                Section {
+                    ForEach(scheduledRecurringPlans) { plan in
+                        BudgetRecurringCommitmentRow(plan: plan, month: month)
+                    }
+                } header: {
+                    Text("Scheduled Fixed Expenses")
+                } footer: {
+                    Text("These are included in Fixed Expenses and Remaining Budget before their payment day. They become regular expenses automatically on the due date.")
+                }
+            }
+
+            group("Fixed Expenses", fixed, total: fixedTotal, whole: whole)
+            group("Variable Expenses", variable, total: variableTotal, whole: whole)
         }
         .overlay {
             if expenses.isEmpty {
@@ -114,17 +158,49 @@ struct BudgetFixedVariableView: View {
     }
 }
 
+private struct BudgetRecurringCommitmentRow: View {
+    let plan: RecurringExpense
+    let month: Date
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(plan.title)
+                    .font(.body.weight(.medium))
+                if let due = plan.dueDate(inMonth: month) {
+                    Text("Due \(due.formatted(.dateTime.day().month(.abbreviated))) · \(plan.paymentDescription)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            Text(plan.amount, format: .rupees)
+                .fontWeight(.semibold)
+                .foregroundStyle(.orange)
+        }
+    }
+}
+
 // MARK: - Bank and card
 
 /// Spending split by how it was paid: bank (debit card and UPI), credit card, or cash.
 struct BudgetPaymentModeView: View {
     @Query private var monthExpenses: [Expense]
+    @Query private var monthIncomes: [Income]
 
     init(month: Date) {
         let range = Calendar.current.monthRange(containing: month)
         let start = range.lowerBound
         let end = range.upperBound
         _monthExpenses = Query(filter: #Predicate<Expense> { $0.date >= start && $0.date < end }, sort: \Expense.date, order: .reverse)
+        _monthIncomes = Query(filter: #Predicate<Income> { $0.date >= start && $0.date < end }, sort: \Income.date, order: .reverse)
+    }
+
+    /// Income received this month, bank by bank.
+    private var incomeByBank: [(name: String, total: Decimal, count: Int)] {
+        Dictionary(grouping: monthIncomes) { $0.bankName.isEmpty ? "No Bank Chosen" : $0.bankName }
+            .map { (name: $0.key, total: $0.value.totalAmount, count: $0.value.count) }
+            .sorted { $0.total > $1.total }
     }
 
     private enum Mode: String, CaseIterable, Identifiable {
@@ -195,6 +271,30 @@ struct BudgetPaymentModeView: View {
                 Text("Credit card spending is paid later with a bill payment, which is not counted again here.")
             }
 
+            if !monthIncomes.isEmpty {
+                Section {
+                    LabeledContent("Total Income") {
+                        Text(monthIncomes.totalAmount, format: .rupees)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.green)
+                    }
+                    ForEach(incomeByBank, id: \.name) { bank in
+                        LabeledContent {
+                            Text(bank.total, format: .rupees).fontWeight(.semibold)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Label(bank.name, systemImage: "building.columns")
+                                Text("\(bank.count) credit\(bank.count == 1 ? "" : "s")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Money In")
+                }
+            }
+
             ForEach(Mode.allCases) { mode in
                 let items = byMode[mode] ?? []
                 if !items.isEmpty {
@@ -222,7 +322,7 @@ struct BudgetPaymentModeView: View {
             }
         }
         .overlay {
-            if expenses.isEmpty {
+            if expenses.isEmpty && monthIncomes.isEmpty {
                 ContentUnavailableView("No Spending", systemImage: "creditcard", description: Text("Nothing has been spent this month."))
             }
         }
@@ -234,12 +334,21 @@ struct BudgetPaymentModeView: View {
 /// A donut chart of where the month's money went, with each category's share.
 struct BudgetCategoryChartView: View {
     @Query private var monthExpenses: [Expense]
+    @Query private var monthIncomes: [Income]
 
     init(month: Date) {
         let range = Calendar.current.monthRange(containing: month)
         let start = range.lowerBound
         let end = range.upperBound
         _monthExpenses = Query(filter: #Predicate<Expense> { $0.date >= start && $0.date < end }, sort: \Expense.date, order: .reverse)
+        _monthIncomes = Query(filter: #Predicate<Income> { $0.date >= start && $0.date < end }, sort: \Income.date, order: .reverse)
+    }
+
+    /// Income received this month, by source, biggest first.
+    private var incomeBySource: [(source: IncomeSource, total: Decimal)] {
+        Dictionary(grouping: monthIncomes, by: \.source)
+            .map { (source: $0.key, total: $0.value.totalAmount) }
+            .sorted { $0.total > $1.total }
     }
 
     private static let palette: [Color] = [.blue, .orange, .green, .pink, .purple, .teal, .yellow, .gray]
@@ -273,7 +382,44 @@ struct BudgetCategoryChartView: View {
         let slices = slices
         let whole = slices.reduce(Decimal(0)) { $0 + $1.total }
 
+        let income = monthIncomes.totalAmount
+
         List {
+            if income > 0 {
+                Section {
+                    LabeledContent("Income") {
+                        Text(income, format: .rupees).fontWeight(.semibold).foregroundStyle(.green)
+                    }
+                    LabeledContent("Spent") {
+                        Text(whole, format: .rupees).fontWeight(.semibold)
+                    }
+                    LabeledContent("Left") {
+                        Text(income - whole, format: .rupees)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(income - whole >= 0 ? Color.green : Color.red)
+                    }
+                }
+
+                Section("Where Income Came From") {
+                    ForEach(incomeBySource, id: \.source) { entry in
+                        HStack(spacing: 10) {
+                            Image(systemName: entry.source.systemImage)
+                                .foregroundStyle(.green)
+                                .frame(width: 22)
+                            Text(entry.source.rawValue)
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(share(entry.total, of: income), format: .percent.precision(.fractionLength(1)))
+                                    .fontWeight(.semibold)
+                                Text(entry.total, format: .rupees)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+
             if whole > 0 {
                 Section {
                     Chart(slices) { slice in
@@ -314,7 +460,7 @@ struct BudgetCategoryChartView: View {
             }
         }
         .overlay {
-            if whole == 0 {
+            if whole == 0 && income == 0 {
                 ContentUnavailableView("No Spending", systemImage: "chart.pie", description: Text("Nothing has been spent this month."))
             }
         }
@@ -332,6 +478,8 @@ struct BudgetSavedView: View {
     @Query private var repayments: [LoanRepayment]
     @Query private var savingsRecords: [MonthlySavings]
     @Query private var goalContributions: [GoalContribution]
+    @Query private var borrowed: [Borrowing]
+    @Query private var borrowPayments: [BorrowingPayment]
 
     init(month: Date) {
         self.month = month
@@ -345,6 +493,8 @@ struct BudgetSavedView: View {
         _loansLent = Query(filter: #Predicate<Loan> { $0.date >= start && $0.date < end && $0.methodRaw == cashMethod })
         _repayments = Query(filter: #Predicate<LoanRepayment> { $0.date >= start && $0.date < end })
         _savingsRecords = Query(filter: #Predicate<MonthlySavings> { $0.month >= start && $0.month < end })
+        _borrowed = Query(filter: #Predicate<Borrowing> { $0.date >= start && $0.date < end })
+        _borrowPayments = Query(filter: #Predicate<BorrowingPayment> { $0.date >= start && $0.date < end })
     }
 
     private var isFinished: Bool {
@@ -358,7 +508,9 @@ struct BudgetSavedView: View {
         let lent = loansLent.totalAmount
         let repaid = repayments.filter(\.isCashInflow).totalAmount
         // Money lent leaves your account and repayments come back, so both move what you kept.
-        let saved = income - spent - lent + repaid
+        let borrowedIn = borrowed.reduce(Decimal(0)) { $0 + $1.amount }
+        let paidBack = borrowPayments.totalAmount
+        let saved = income - spent - lent + repaid + borrowedIn - paidBack
         let record = savingsRecords.first
 
         List {
@@ -398,6 +550,16 @@ struct BudgetSavedView: View {
                 if repaid > 0 {
                     LabeledContent("Repaid to You") {
                         Text("+\(repaid.formatted(.rupees))").foregroundStyle(.green)
+                    }
+                }
+                if borrowedIn > 0 {
+                    LabeledContent("Borrowed from Friends") {
+                        Text("+\(borrowedIn.formatted(.rupees))").foregroundStyle(.green)
+                    }
+                }
+                if paidBack > 0 {
+                    LabeledContent("Repaid to Friends") {
+                        Text("−\(paidBack.formatted(.rupees))").foregroundStyle(.orange)
                     }
                 }
                 LabeledContent("Saved") {
@@ -585,6 +747,8 @@ struct BudgetRecapView: View {
     @Query private var loansLent: [Loan]
     @Query private var repayments: [LoanRepayment]
     @Query private var contributions: [GoalContribution]
+    @Query private var borrowed: [Borrowing]
+    @Query private var borrowPayments: [BorrowingPayment]
     @Query private var budgets: [CategoryBudget]
 
     init(month: Date) {
@@ -602,6 +766,8 @@ struct BudgetRecapView: View {
         _loansLent = Query(filter: #Predicate<Loan> { $0.date >= start && $0.date < end && $0.methodRaw == cashMethod })
         _repayments = Query(filter: #Predicate<LoanRepayment> { $0.date >= start && $0.date < end })
         _contributions = Query(filter: #Predicate<GoalContribution> { $0.date >= start && $0.date < end })
+        _borrowed = Query(filter: #Predicate<Borrowing> { $0.date >= start && $0.date < end })
+        _borrowPayments = Query(filter: #Predicate<BorrowingPayment> { $0.date >= start && $0.date < end })
     }
 
     private var recap: MonthlyRecap {
@@ -613,7 +779,9 @@ struct BudgetRecapView: View {
             cashLoans: loansLent,
             cashRepayments: repayments.filter(\.isCashInflow),
             budgets: budgets,
-            contributions: contributions
+            contributions: contributions,
+            borrowed: borrowed.reduce(Decimal(0)) { $0 + $1.amount },
+            paidBack: borrowPayments.totalAmount
         )
     }
 
@@ -795,10 +963,10 @@ struct BudgetRecapView: View {
         if recap.spent > 0 || !recap.overLimit.isEmpty || recap.goalsSetAside > 0 {
             Section("Planning") {
                 if recap.spent > 0 {
-                    LabeledContent("Fixed Spending") {
+                    LabeledContent("Fixed Expenses") {
                         Text(recap.fixedSpent, format: .rupees)
                     }
-                    LabeledContent("Variable Spending") {
+                    LabeledContent("Variable Expenses") {
                         Text(recap.variableSpent, format: .rupees)
                     }
                 }

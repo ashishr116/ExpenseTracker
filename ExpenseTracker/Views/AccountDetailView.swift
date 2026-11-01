@@ -200,7 +200,7 @@ struct AccountDetailView: View {
             Button("WhatsApp", systemImage: "bubble.left.and.text.bubble.right") { sendReminder(.whatsApp) }
             Button("PDF Statement", systemImage: "doc.richtext") {
                 if let share = remindingShare,
-                   let url = LoanStatementPDF.statement(for: share.friendName, loans: share.loans) {
+                   let url = LoanStatementPDF.statement(for: share.friendName, loans: share.loans, borrowings: borrowings) {
                     SharePresenter.present(urls: [url])
                 }
             }
@@ -260,7 +260,7 @@ struct AccountDetailView: View {
                         .disabled(billsBack == 0)
                 }
                 .labelStyle(.iconOnly)
-                // Borderless so each arrow is tappable on its own inside a list row.
+                // Borderless so each arrow is tappable on its own inside a list row.\
                 .buttonStyle(.borderless)
             }
 

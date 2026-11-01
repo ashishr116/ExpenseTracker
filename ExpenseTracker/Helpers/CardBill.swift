@@ -82,18 +82,12 @@ enum CardBill {
 
     /// Friends who still owe something on this card, biggest amount first.
     ///
-    /// A loan is on the card when the bank matches and, if the card has digits, those match too. This is how
-    /// the account ledger finds a card's loans.
+    /// A loan is on the card only when both its bank and last four digits match.
     static func friendShares(bankName: String, lastFour: String, loans: [Loan]) -> [CardBillShare] {
-        func sameBank(_ a: String, _ b: String) -> Bool {
-            let a = a.trimmingCharacters(in: .whitespaces)
-            return !a.isEmpty && a.caseInsensitiveCompare(b.trimmingCharacters(in: .whitespaces)) == .orderedSame
-        }
-
         let onCard = loans.filter { loan in
             loan.method == .card && !loan.isRepaid && loan.outstandingAmount > 0
-                && sameBank(loan.bankName, bankName)
-                && (lastFour.isEmpty || loan.cardLastFour == lastFour)
+                && BankName.matches(loan.bankName, bankName)
+                && loan.cardLastFour == String(lastFour.filter(\.isNumber).suffix(4))
         }
 
         return Dictionary(grouping: onCard) { $0.friendName.trimmingCharacters(in: .whitespaces).lowercased() }

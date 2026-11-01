@@ -124,6 +124,18 @@ final class RecurringExpense {
         guard let endDate else { return false }
         return endDate < now
     }
+
+    /// Whether this plan is a budget commitment in `month` that has not yet been posted as an expense.
+    /// This lets budgets reserve rent and subscriptions before their payment day without recording spending early.
+    func hasUnpostedCommitment(in month: Date) -> Bool {
+        guard isActive,
+              let due = dueDate(inMonth: month) else { return false }
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: startDate)
+        guard due >= start, endDate.map({ due <= $0 }) ?? true else { return false }
+        guard let lastPostedMonth else { return true }
+        return !calendar.isDate(lastPostedMonth, equalTo: month, toGranularity: .month)
+    }
 }
 
 extension Sequence where Element == RecurringExpense {

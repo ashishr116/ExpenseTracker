@@ -43,7 +43,7 @@ final class PaymentCard {
         nickname: String = "",
         createdAt: Date = .now
     ) {
-        self.bankName = bankName
+        self.bankName = BankName.normalized(bankName)
         let cleanDigits = cardNumber.filter(\.isNumber)
         let lastFour = !cardLastFour.isEmpty ? cardLastFour : String(cleanDigits.suffix(4))
         self.cardLastFour = lastFour

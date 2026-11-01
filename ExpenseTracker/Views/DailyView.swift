@@ -41,6 +41,8 @@ private enum DailyItem: Identifiable {
     case loanRepayment(LoanRepayment)
     /// A credit card bill payment. Shown for reference and never counted in the totals.
     case cardPayment(Transfer)
+    case borrowed(Borrowing)
+    case borrowPayment(BorrowingPayment)
 
     var id: String {
         switch self {
@@ -49,6 +51,8 @@ private enum DailyItem: Identifiable {
         case .loanLent(let loan): return "loan-lent-\(loan.persistentModelID)"
         case .loanRepayment(let repayment): return "loan-repayment-\(repayment.persistentModelID)"
         case .cardPayment(let transfer): return "card-payment-\(transfer.persistentModelID)"
+        case .borrowed(let borrowing): return "borrowed-\(borrowing.persistentModelID)"
+        case .borrowPayment(let payment): return "borrow-payment-\(payment.persistentModelID)"
         }
     }
 
@@ -59,6 +63,8 @@ private enum DailyItem: Identifiable {
         case .loanLent(let loan): return loan.date
         case .loanRepayment(let repayment): return repayment.date
         case .cardPayment(let transfer): return transfer.date
+        case .borrowed(let borrowing): return borrowing.date
+        case .borrowPayment(let payment): return payment.date
         }
     }
 }
@@ -78,6 +84,10 @@ private struct DailyTransactionList: View {
     @Query private var transfers: [Transfer]
 
     private var cardPayments: [Transfer] { transfers.filter(\.isCardBillPayment) }
+
+    /// Money borrowed from friends today, and payments back to them today.
+    @Query private var borrowed: [Borrowing]
+    @Query private var borrowPayments: [BorrowingPayment]
 
     @State private var editingExpense: Expense?
     @State private var editingIncome: Income?
@@ -114,6 +124,8 @@ private struct DailyTransactionList: View {
             sort: \Transfer.date,
             order: .reverse
         )
+        _borrowed = Query(filter: #Predicate<Borrowing> { $0.date >= start && $0.date < end })
+        _borrowPayments = Query(filter: #Predicate<BorrowingPayment> { $0.date >= start && $0.date < end })
     }
 
     private var transactions: [DailyItem] {
@@ -123,6 +135,8 @@ private struct DailyTransactionList: View {
         items.append(contentsOf: loansLent.map { DailyItem.loanLent($0) })
         items.append(contentsOf: cashRepayments.map { DailyItem.loanRepayment($0) })
         items.append(contentsOf: cardPayments.map { DailyItem.cardPayment($0) })
+        items.append(contentsOf: borrowed.map { DailyItem.borrowed($0) })
+        items.append(contentsOf: borrowPayments.map { DailyItem.borrowPayment($0) })
         return items.sorted { $0.date > $1.date }
     }
 
@@ -135,7 +149,8 @@ private struct DailyTransactionList: View {
             }
         }
         .overlay {
-            if expenses.isEmpty && incomes.isEmpty && loansLent.isEmpty && cashRepayments.isEmpty && cardPayments.isEmpty {
+            if expenses.isEmpty && incomes.isEmpty && loansLent.isEmpty && cashRepayments.isEmpty && cardPayments.isEmpty
+                && borrowed.isEmpty && borrowPayments.isEmpty {
                 ContentUnavailableView(
                     "No Transactions",
                     systemImage: "tray",
@@ -160,7 +175,9 @@ private struct DailyTransactionList: View {
         let pending = expenses.plannedAmount
         let loanedOut = loansLent.totalAmount
         let cashRepaid = cashRepayments.totalAmount
-        let net = income - spent - loanedOut + cashRepaid
+        let borrowedIn = borrowed.reduce(Decimal(0)) { $0 + $1.amount }
+        let paidBack = borrowPayments.totalAmount
+        let net = income - spent - loanedOut + cashRepaid + borrowedIn - paidBack
 
         return Section {
             if income > 0 {
@@ -201,7 +218,23 @@ private struct DailyTransactionList: View {
                 }
             }
 
-            if income > 0 || loanedOut > 0 || cashRepaid > 0 {
+            if borrowedIn > 0 {
+                LabeledContent("Borrowed from Friends") {
+                    Text(borrowedIn, format: .rupees)
+                        .foregroundStyle(.green)
+                        .fontWeight(.semibold)
+                }
+            }
+
+            if paidBack > 0 {
+                LabeledContent("Repaid to Friends") {
+                    Text(paidBack, format: .rupees)
+                        .foregroundStyle(.orange)
+                        .fontWeight(.semibold)
+                }
+            }
+
+            if income > 0 || loanedOut > 0 || cashRepaid > 0 || borrowedIn > 0 || paidBack > 0 {
                 LabeledContent("Net for Day") {
                     Text(net > 0 ? "+\(net.formatted(.rupees))" : net.formatted(.rupees))
                         .font(.title3.weight(.bold))
@@ -285,6 +318,27 @@ private struct DailyTransactionList: View {
                         .swipeActions {
                             Button("Delete", systemImage: "trash", role: .destructive) {
                                 modelContext.delete(transfer)
+                            }
+                        }
+
+                case .borrowed(let borrowing):
+                    BorrowingEventRow(borrowing: borrowing)
+                        .swipeActions {
+                            Button("Delete", systemImage: "trash", role: .destructive) {
+                                modelContext.delete(borrowing)
+                            }
+                        }
+
+                case .borrowPayment(let payment):
+                    BorrowingEventRow(payment: payment)
+                        .swipeActions {
+                            // Removing a payment makes the debt outstanding again.
+                            Button("Delete", systemImage: "trash", role: .destructive) {
+                                if let borrowing = payment.borrowing {
+                                    borrowing.removePayment(payment, in: modelContext)
+                                } else {
+                                    modelContext.delete(payment)
+                                }
                             }
                         }
                 }

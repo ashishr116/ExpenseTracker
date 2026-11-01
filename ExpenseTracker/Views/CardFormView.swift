@@ -10,6 +10,7 @@ import SwiftData
 struct CardFormView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Query private var storedCards: [PaymentCard]
 
     let card: PaymentCard?
 
@@ -38,7 +39,7 @@ struct CardFormView: View {
     }
 
     private var trimmedBank: String {
-        bankName.trimmingCharacters(in: .whitespacesAndNewlines)
+        BankName.normalized(bankName)
     }
 
     private var isValid: Bool {
@@ -190,7 +191,7 @@ struct CardFormView: View {
         let trimmedExpiry = expiryInput.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanCVV = String(cvvInput.filter(\.isNumber).prefix(4))
 
-        if let card {
+        func update(_ card: PaymentCard) {
             card.bankName = trimmedBank
             card.cardNumber = cleanDigits
             // A card saved from Accounts has digits but no full number. Leaving the number empty must not erase them.
@@ -202,6 +203,21 @@ struct CardFormView: View {
             card.nickname = trimmedNickname
             card.statementDay = accountType == .creditCard ? statementDay : 0
             card.dueDay = accountType == .creditCard ? dueDay : 0
+        }
+
+        let savedCard: PaymentCard
+        if let card {
+            update(card)
+            savedCard = card
+        } else if let existing = storedCards.first(where: {
+            $0.accountType == accountType
+                && BankName.matches($0.bankName, trimmedBank)
+                && $0.cardLastFour == lastFour
+        }) {
+            // A card first saved from an expense may have no full details; enrich that same record instead of
+            // creating a second card with the same bank and last four digits.
+            update(existing)
+            savedCard = existing
         } else {
             let newCard = PaymentCard(
                 bankName: trimmedBank,
@@ -216,7 +232,9 @@ struct CardFormView: View {
             newCard.statementDay = accountType == .creditCard ? statementDay : 0
             newCard.dueDay = accountType == .creditCard ? dueDay : 0
             modelContext.insert(newCard)
+            savedCard = newCard
         }
+        CardSync.sync(in: modelContext, editingCard: savedCard)
         let context = modelContext
         Task { await CardBillReminder.reschedule(in: context) }
         dismiss()

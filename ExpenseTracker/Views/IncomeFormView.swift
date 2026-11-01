@@ -89,7 +89,7 @@ struct IncomeFormView: View {
         guard let amount, amount > 0 else { return }
 
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedBank = bankName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBank = BankName.normalized(bankName)
 
         if let income {
             income.amount = amount

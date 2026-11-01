@@ -50,6 +50,8 @@ struct MonthlyRecap {
         cashRepayments: [LoanRepayment],
         budgets: [CategoryBudget],
         contributions: [GoalContribution],
+        borrowed: Decimal = 0,
+        paidBack: Decimal = 0,
         now: Date = .now
     ) {
         let calendar = Calendar.current
@@ -63,7 +65,7 @@ struct MonthlyRecap {
 
         income = incomes.totalAmount
         spent = paid.totalAmount
-        saved = income - spent - cashLoans.totalAmount + cashRepayments.totalAmount
+        saved = income - spent - cashLoans.totalAmount + cashRepayments.totalAmount + borrowed - paidBack
         let before = previousPaid.totalAmount
         previousSpent = before > 0 ? before : nil
 

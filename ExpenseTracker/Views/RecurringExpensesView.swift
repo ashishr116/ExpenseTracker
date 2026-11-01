@@ -10,22 +10,31 @@ import SwiftData
 struct RecurringExpensesView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \RecurringExpense.createdAt) private var plans: [RecurringExpense]
+    @Query(sort: \EMI.endMonth) private var emis: [EMI]
 
     @State private var isAdding = false
     @State private var editing: RecurringExpense?
+    @State private var month = Date.now
+
+    /// The actual EMI expense for each scheduled month. These are owned by the EMI, not duplicate plans.
+    private var monthlyEMIs: [Expense] {
+        let range = Calendar.current.monthRange(containing: month)
+        return emis
+            .flatMap(\.installments)
+            .filter { $0.date >= range.lowerBound && $0.date < range.upperBound }
+            .sorted { $0.date < $1.date }
+    }
+
+    private var monthlyEMITotal: Decimal { monthlyEMIs.totalAmount }
 
     var body: some View {
         List {
-            if plans.isEmpty {
-                Section {
-                    Label("Add what you pay every month", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.headline)
-                    Text("Rent, the maid, subscriptions. Enter each one once, with the day it is paid. From then on the app adds it to your expenses on that day, so you don't have to.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Button("Add Your First One", systemImage: "plus") { isAdding = true }
-                }
-            } else {
+            Section {
+                MonthSelector(month: $month)
+                    .listRowInsets(EdgeInsets())
+            }
+
+            if !plans.isEmpty {
                 Section {
                     LabeledContent("Every Month") {
                         Text(plans.monthlyTotal, format: .rupees)
@@ -51,6 +60,33 @@ struct RecurringExpensesView: View {
                     }
                 }
             }
+
+            if !monthlyEMIs.isEmpty {
+                Section {
+                    LabeledContent("Due This Month") {
+                        Text(monthlyEMITotal, format: .rupees)
+                            .font(.title3.weight(.bold))
+                    }
+                    ForEach(monthlyEMIs) { installment in
+                        EMIRecurringRow(installment: installment)
+                    }
+                } header: {
+                    Text("EMIs · \(month.formatted(.dateTime.month(.wide).year()))")
+                } footer: {
+                    Text("EMIs are shown for their scheduled month. They are managed under EMIs, and appear here as fixed recurring commitments.")
+                }
+            }
+
+            if plans.isEmpty && monthlyEMIs.isEmpty {
+                Section {
+                    Label("Add what you pay every month", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.headline)
+                    Text("Rent, the maid, subscriptions, and scheduled EMIs will appear here for their payment month.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Button("Add Your First One", systemImage: "plus") { isAdding = true }
+                }
+            }
         }
         .navigationTitle("Recurring Expenses")
         .toolbar {
@@ -64,6 +100,38 @@ struct RecurringExpensesView: View {
         .sheet(item: $editing) { plan in
             RecurringExpenseFormView(plan: plan)
         }
+    }
+}
+
+private struct EMIRecurringRow: View {
+    let installment: Expense
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "calendar.badge.clock")
+                .font(.title3)
+                .foregroundStyle(.tint)
+                .frame(width: 36, height: 36)
+                .background(.tint.opacity(0.12), in: .circle)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(installment.displayTitle)
+                    .font(.body.weight(.medium))
+                Text("Due \(installment.date.formatted(.dateTime.day().month(.abbreviated))) · \(installment.accountDescription)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(installment.isPlanned ? "Planned" : "Paid")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(installment.isPlanned ? .orange : .green)
+            }
+            .layoutPriority(1)
+
+            Spacer()
+
+            Text(installment.amount, format: .rupees)
+                .fontWeight(.semibold)
+        }
+        .padding(.vertical, 2)
     }
 }
 
@@ -113,5 +181,5 @@ private struct RecurringRow: View {
     NavigationStack {
         RecurringExpensesView()
     }
-    .modelContainer(for: [RecurringExpense.self, Expense.self], inMemory: true)
+    .modelContainer(for: [RecurringExpense.self, Expense.self, EMI.self], inMemory: true)
 }
