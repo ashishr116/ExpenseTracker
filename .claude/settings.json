@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sqlite3 *)",
+      "Bash(xcrun simctl *)",
+      "Bash(plutil *)",
+      "Bash(sleep *)",
+      "Bash(python3 *)",
+      "Bash(cd *)",
+      "mcp__xcode-tools__BuildProject",
+      "mcp__xcode-tools__RunProject",
+      "mcp__xcode-tools__StopProject",
+      "mcp__xcode-tools__XcodeSwitchRunDestination",
+      "mcp__xcode-tools__XcodeListRunDestinations",
+      "mcp__xcode-tools__DeviceInteractionStartSession",
+      "mcp__xcode-tools__DeviceInteractionStartWorkspaceSession",
+      "mcp__xcode-tools__DeviceInteractionSynthesize",
+      "mcp__xcode-tools__DeviceInteractionEndSession",
+      "mcp__xcode-tools__DeviceInteractionInstallAndRun",
+      "mcp__xcode-tools__GetConsoleOutput",
+      "mcp__xcode-tools__GetBuildLog"
+    ]
+  }
+}
