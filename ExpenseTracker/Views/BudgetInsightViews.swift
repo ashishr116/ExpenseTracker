@@ -199,7 +199,7 @@ struct BudgetPaymentModeView: View {
     /// Income received this month, bank by bank.
     private var incomeByBank: [(name: String, total: Decimal, count: Int)] {
         Dictionary(grouping: monthIncomes) { $0.bankName.isEmpty ? "No Bank Chosen" : $0.bankName }
-            .map { (name: $0.key, total: $0.value.totalAmount, count: $0.value.count) }
+            .map { (name: BankName.display($0.key), total: $0.value.totalAmount, count: $0.value.count) }
             .sorted { $0.total > $1.total }
     }
 
@@ -240,7 +240,7 @@ struct BudgetPaymentModeView: View {
     private func sources(in items: [Expense], mode: Mode) -> [Source] {
         Dictionary(grouping: items) { expense -> String in
             var parts: [String] = []
-            if !expense.bankName.isEmpty { parts.append(expense.bankName) }
+            if !expense.bankName.isEmpty { parts.append(BankName.display(expense.bankName)) }
             if !expense.cardLastFour.isEmpty { parts.append("•••• \(expense.cardLastFour)") }
             return parts.isEmpty ? mode.rawValue : parts.joined(separator: " · ")
         }
@@ -595,7 +595,7 @@ struct BudgetSavedView: View {
 
             if let record, record.applied > 0 {
                 Section {
-                    LabeledContent("Moved to \(record.bankName)") {
+                    LabeledContent("Moved to \(BankName.display(record.bankName))") {
                         Text(record.applied, format: .rupees).foregroundStyle(.green)
                     }
                 } footer: {

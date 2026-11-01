@@ -28,6 +28,8 @@ struct InsuranceFormView: View {
     @State private var accountType: AccountType
     @State private var bankName: String
     @State private var cardLastFour: String
+    /// A credit card saved for the first time by this policy, while its bill day is being asked.
+    @State private var cardAskingBillDay: PaymentCard?
     @State private var nomineeOrMembers: String
     @State private var note: String
     /// How many past premiums are already paid. `nil` until changed, then it follows the schedule.
@@ -186,6 +188,10 @@ struct InsuranceFormView: View {
             }
             .navigationTitle(policy == nil ? "Add Policy" : "Edit Policy")
             .navigationBarTitleDisplayMode(.inline)
+            // The policy is already saved. Once the bill day is answered or skipped, the form closes.
+            .sheet(item: $cardAskingBillDay, onDismiss: { dismiss() }) { card in
+                BillingCycleSheet(card: card)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -204,6 +210,8 @@ struct InsuranceFormView: View {
         let trim: (String) -> String = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         let bank = accountType.usesBank ? BankName.normalized(bankName) : ""
         let card = accountType.usesCard ? cardLastFour : ""
+        // The card is saved, and a credit card gets its account, so it shows under Accounts.
+        let newCard = CardSync.saveCard(accountType: accountType, bankName: bank, lastFour: card, in: modelContext)
 
         let target: InsurancePolicy
         if let policy {
@@ -247,7 +255,11 @@ struct InsuranceFormView: View {
         }
         // Only a new policy gets past premiums recorded as paid; an edited one keeps its own history.
         target.regeneratePremiumExpenses(in: modelContext, markingFirstPaid: policy == nil ? alreadyPaid : 0)
-        dismiss()
+        if let newCard {
+            cardAskingBillDay = newCard
+        } else {
+            dismiss()
+        }
     }
 }
 

@@ -19,12 +19,24 @@ struct AccountFormView: View {
     @State private var cardLastFour: String
     @State private var openingBalance: Decimal?
     @State private var openingDate: Date
+    /// For a credit card: whether the amount owed is on a bill already, not yet, or partly.
+    @State private var openingSplit: OpeningSplit
+    @State private var openingUnbilledPart: Decimal?
     @State private var isArchived: Bool
     /// For a credit card: the bill dates. They are kept on the card's saved card.
     @State private var statementDay = 0
     @State private var dueDay = 0
     @State private var hasLoadedBillDates = false
     @Query private var savedCards: [PaymentCard]
+
+    /// How much of a card's opening amount is unbilled.
+    private enum OpeningSplit: String, CaseIterable, Identifiable {
+        case billed = "All Billed"
+        case unbilled = "All Unbilled"
+        case part = "Part Unbilled"
+
+        var id: String { rawValue }
+    }
 
     /// - Parameter kind: The type to start with when adding a new account.
     init(account: Account? = nil, kind: AccountKind = .bank) {
@@ -35,13 +47,31 @@ struct AccountFormView: View {
         _cardLastFour = State(initialValue: account?.cardLastFour ?? "")
         _openingBalance = State(initialValue: account?.openingBalance)
         _openingDate = State(initialValue: account?.openingDate ?? .now)
+        let owed = account?.openingBalance ?? 0
+        let unbilled = account?.openingUnbilled ?? 0
+        _openingSplit = State(initialValue: unbilled <= 0 ? .billed : (unbilled >= owed ? .unbilled : .part))
+        _openingUnbilledPart = State(initialValue: unbilled > 0 && unbilled < owed ? unbilled : nil)
         _isArchived = State(initialValue: account?.isArchived ?? false)
     }
 
     private var trimmedBank: String { BankName.normalized(bankName) }
 
+    /// The part of the amount owed that is not on a bill yet, from the choice made.
+    private var openingUnbilledValue: Decimal {
+        guard kind == .creditCard, let openingBalance, openingBalance > 0 else { return 0 }
+        switch openingSplit {
+        case .billed: return 0
+        case .unbilled: return openingBalance
+        case .part: return min(max(0, openingUnbilledPart ?? 0), openingBalance)
+        }
+    }
+
     private var isValid: Bool {
         guard openingBalance != nil else { return false }
+        // A part that is unbilled can't be more than what is owed.
+        if kind == .creditCard, openingSplit == .part, let part = openingUnbilledPart, let owed = openingBalance, part > owed {
+            return false
+        }
         // The bank name is how entries find this account, so banks and cards need one.
         return kind == .cash || !trimmedBank.isEmpty
     }
@@ -89,11 +119,25 @@ struct AccountFormView: View {
                         .keyboardType(.decimalPad)
                         .font(.title3.weight(.semibold))
                     DatePicker("As Of", selection: $openingDate, displayedComponents: .date)
+                    if kind == .creditCard {
+                        Picker("This Amount Is", selection: $openingSplit.animation()) {
+                            ForEach(OpeningSplit.allCases) { split in
+                                Text(split.rawValue).tag(split)
+                            }
+                        }
+                        if openingSplit == .part {
+                            TextField("Unbilled Part", value: $openingUnbilledPart, format: .rupees)
+                                .keyboardType(.decimalPad)
+                            if let owed = openingBalance, let part = openingUnbilledPart, part <= owed {
+                                LabeledContent("Billed Part", value: (owed - part).formatted(.rupees))
+                            }
+                        }
+                    }
                 } header: {
                     Text("Starting Point")
                 } footer: {
                     Text(kind.isLiability
-                         ? "Enter what you owe for your own spending. If friends have used the card, their share isn't part of this. It comes from the loans you record. Only entries on or after this date change the amount."
+                         ? "Enter what you owe for your own spending. If friends have used the card, their share isn't part of this. It comes from the loans you record. Only entries on or after this date change the amount. Billed is on a statement already. Unbilled was spent since the last bill and goes on the next one. Set the bill day below so the card can show both."
                          : "Enter the real figure from your bank or statement. Only entries on or after this date change the balance, so older ones aren't counted twice.")
                 }
 
@@ -143,7 +187,7 @@ struct AccountFormView: View {
                         Button {
                             bankName = bank
                         } label: {
-                            Text(bank)
+                            Text(BankName.display(bank))
                                 .font(.caption)
                                 .fontWeight(isSelected ? .semibold : .regular)
                                 .foregroundStyle(isSelected ? .white : .primary)
@@ -171,6 +215,7 @@ struct AccountFormView: View {
             account.bankName = bank
             account.cardLastFour = digits
             account.openingBalance = openingBalance
+            account.openingUnbilled = openingUnbilledValue
             account.openingDate = openingDate
             account.isArchived = isArchived
             CardSync.sync(in: modelContext, editing: account)
@@ -184,6 +229,7 @@ struct AccountFormView: View {
                 openingBalance: openingBalance,
                 openingDate: openingDate
             )
+            newAccount.openingUnbilled = openingUnbilledValue
             modelContext.insert(newAccount)
             // A credit card also becomes a saved card, so it can be chosen when adding an expense.
             CardSync.sync(in: modelContext, editing: newAccount)

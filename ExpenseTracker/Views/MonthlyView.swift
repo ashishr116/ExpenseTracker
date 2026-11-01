@@ -112,9 +112,20 @@ private struct MonthlyExpenseList: View {
     @State private var editingExpense: Expense?
     /// Which half is showing: the month's figures, or its transactions.
     private let page: MonthlyPage
+    /// The month shown, to find the rent and subscriptions still due in it.
+    private let month: Date
+    @Query private var recurringPlans: [RecurringExpense]
+
+    /// Rent, subscriptions and other monthly payments due in this month but not yet added as expenses.
+    private var scheduledFixed: Decimal {
+        recurringPlans
+            .filter { $0.hasUnpostedCommitment(in: month) }
+            .reduce(0) { $0 + $1.amount }
+    }
 
     init(month: Date, page: MonthlyPage) {
         self.page = page
+        self.month = month
         let range = Calendar.current.monthRange(containing: month)
         let start = range.lowerBound
         let end = range.upperBound
@@ -187,7 +198,7 @@ private struct MonthlyExpenseList: View {
     var body: some View {
         Group {
             if expenses.isEmpty && incomes.isEmpty && loansLent.isEmpty && cashRepayments.isEmpty && cardPayments.isEmpty
-                && borrowed.isEmpty && borrowPayments.isEmpty {
+                && borrowed.isEmpty && borrowPayments.isEmpty && scheduledFixed == 0 {
                 ContentUnavailableView(
                     "Nothing This Month",
                     systemImage: "calendar",
@@ -315,7 +326,13 @@ private struct MonthlyExpenseList: View {
     private var summarySection: some View {
         let income = incomes.totalAmount
         let spent = expenses.spentAmount
-        let pending = expenses.plannedAmount
+        // EMIs already on a card with a bill day are in that card's bill, so they're not counted twice.
+        let pending = CardBillForecast.pendingAmount(
+            of: expenses, cardKeys: CardBillForecast.cardKeysWithBillDay(context: modelContext)
+        )
+        // Credit card bills that will leave your account this month.
+        let cardDues = CardBillForecast.dues(in: month, context: modelContext)
+        let cardDue = cardDues.reduce(Decimal(0)) { $0 + $1.amount }
         let lent = loansLent.totalAmount
         let repaid = cashRepayments.totalAmount
         let borrowedIn = borrowed.reduce(Decimal(0)) { $0 + $1.amount }
@@ -325,7 +342,9 @@ private struct MonthlyExpenseList: View {
         let balance = income - spent - lent + repaid + borrowedIn - paidBack
         // Credit card spending isn't taken from cash until the bill is paid. Shown only when a card was used.
         let cash = MonthCashView(
-            income: income, expenses: expenses, cardPayments: transfers, cashLent: lent, cashRepaid: repaid,
+            // A friend's card share paid to you is in hand, and goes out again with the card bill.
+            income: income, expenses: expenses, cardPayments: transfers, cashLent: lent,
+            cashRepaid: repaid + repayments.filter(\.isCardShareReceived).totalAmount,
             borrowed: borrowedIn, paidBack: paidBack
         )
         // When a card was used, the main figures count what left your cash. Credit card purchases wait for the bill.
@@ -352,6 +371,27 @@ private struct MonthlyExpenseList: View {
             if pending > 0 {
                 LabeledContent("Pending EMIs & Premiums") {
                     Text(pending, format: .rupees)
+                        .foregroundStyle(.orange)
+                        .fontWeight(.semibold)
+                }
+            }
+            if cardDue > 0 {
+                LabeledContent {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(cardDue, format: .rupees)
+                            .foregroundStyle(.orange)
+                            .fontWeight(.semibold)
+                        Text(cardDues.contains(where: \.isSoFar) ? "Mine · unbilled so far" : "Mine")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } label: {
+                    Text("Card Bills Due")
+                }
+            }
+            if scheduledFixed > 0 {
+                LabeledContent("Scheduled Fixed Expenses") {
+                    Text(scheduledFixed, format: .rupees)
                         .foregroundStyle(.orange)
                         .fontWeight(.semibold)
                 }
@@ -386,11 +426,12 @@ private struct MonthlyExpenseList: View {
             }
             // With a card in use, Balance is the cash left. Otherwise it is income less what was spent.
             balanceRow(shownBalance)
-            if pending > 0 {
+            if pending + scheduledFixed + cardDue > 0 {
+                // What is left once the EMIs, premiums, monthly payments and card bills still due are paid.
                 LabeledContent("Left After Pending") {
-                    Text(shownBalance - pending, format: .rupees)
+                    Text(shownBalance - pending - scheduledFixed - cardDue, format: .rupees)
                         .fontWeight(.semibold)
-                        .foregroundStyle(shownBalance - pending >= 0 ? .green : .red)
+                        .foregroundStyle(shownBalance - pending - scheduledFixed - cardDue >= 0 ? .green : .red)
                 }
             }
             LabeledContent(
@@ -428,7 +469,7 @@ private struct IncomeRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(income.displayTitle)
                     .font(.body.weight(.medium))
-                Text(income.bankName.isEmpty ? income.source.rawValue : income.bankName)
+                Text((income.date > .now ? "Expected · " : "") + (income.bankName.isEmpty ? income.source.rawValue : BankName.display(income.bankName)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

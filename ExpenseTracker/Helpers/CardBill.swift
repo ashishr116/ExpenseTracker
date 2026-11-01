@@ -63,14 +63,25 @@ enum CardBill {
 
     /// Splits what a card owes into the latest bill and the spending after it. `lines` and `lentLines` are the
     /// card's own movements and friends' purchases, and `owed` is the total on the card, friends included.
-    static func statement(for card: PaymentCard, lines: [LedgerLine], lentLines: [LedgerLine], owed: Decimal, now: Date = .now) -> CardStatement? {
+    ///
+    /// - Parameters:
+    ///   - openingUnbilled: The part of the amount owed when the card was added that was not on a bill yet.
+    ///   - openingDate: The day the card was added. That part stays unbilled until the next bill day passes.
+    static func statement(
+        for card: PaymentCard, lines: [LedgerLine], lentLines: [LedgerLine], owed: Decimal,
+        openingUnbilled: Decimal = 0, openingDate: Date? = nil, now: Date = .now
+    ) -> CardStatement? {
         let calendar = Calendar.current
         guard card.hasBillingCycle, let billDate = card.lastStatementDate(onOrBefore: now),
               let cutoff = calendar.date(byAdding: .day, value: 1, to: billDate) else { return nil }
         // Anything on the bill day itself is on that bill.
-        let unbilled = (lines + lentLines)
-            .filter { $0.date >= cutoff && $0.effect > 0 }
+        var unbilled = (lines + lentLines)
+            .filter { $0.date >= cutoff && $0.effect > 0 && !$0.movesShare }
             .reduce(Decimal(0)) { $0 + $1.effect }
+        // What was already on the card, unbilled, when it was added is on the next bill, unless a bill day has passed since.
+        if let openingDate, openingDate >= cutoff { unbilled += openingUnbilled }
+        // A payment beyond the bill clears spending not yet billed too, so unbilled can't be more than is owed.
+        unbilled = min(unbilled, max(0, owed))
         return CardStatement(
             billDate: billDate,
             dueDate: card.dueDate(forStatementOn: billDate),
@@ -159,6 +170,7 @@ enum CardBillReminder {
                     lines: ledger.lines(for: account),
                     lentLines: ledger.lentLines(for: account),
                     owed: ledger.balance(of: account) + ledger.lentOutstanding(of: account),
+                    openingUnbilled: account.openingUnbilled, openingDate: account.openingDate,
                     now: now
                 )
             }

@@ -17,6 +17,9 @@ struct LedgerLine: Identifiable {
     let effect: Decimal
     /// Set for transfers and adjustments, so they can be removed if entered by mistake.
     let transfer: Transfer?
+    /// A friend's share of the card moved to yours because they paid you. The card's total doesn't change,
+    /// so this isn't new spending on the bill.
+    var movesShare = false
 }
 
 /// Works out each account's balance from the entries, and finds entries that belong to no account.
@@ -42,6 +45,8 @@ struct AccountLedger {
     /// Friends' purchases on your credit cards and what they have paid back. These never change a balance:
     /// they are what friends owe the card, shown beside "mine" so the card matches the bank's statement.
     private let lentEntries: [Entry]
+    /// Friends' card loans on a card that isn't one of your accounts, so they show on no card.
+    private let unlinkedCardLoans: [LedgerLine]
 
     init(
         accounts: [Account],
@@ -116,7 +121,7 @@ struct AccountLedger {
                     id: "income-\(income.persistentModelID)",
                     date: income.date,
                     title: income.displayTitle,
-                    subtitle: income.bankName.isEmpty ? "No bank chosen" : income.bankName,
+                    subtitle: income.bankName.isEmpty ? "No bank chosen" : BankName.display(income.bankName),
                     effect: income.amount,
                     transfer: nil
                 )
@@ -131,14 +136,14 @@ struct AccountLedger {
                     id: "loan-\(loan.persistentModelID)",
                     date: loan.date,
                     title: "Lent to \(loan.friendName)",
-                    subtitle: loan.bankName.isEmpty ? "Cash" : loan.bankName,
+                    subtitle: loan.bankName.isEmpty ? "Cash" : BankName.display(loan.bankName),
                     effect: -loan.amount,
                     transfer: nil
                 )
             ))
         }
 
-        for repayment in repayments where repayment.isCashInflow && repayment.date <= now {
+        for repayment in repayments where (repayment.isCashInflow || repayment.isCardShareReceived) && repayment.date <= now {
             let owner = account(forLoanBank: repayment.bankName)
             built.append(Entry(
                 accountUID: owner?.uid,
@@ -146,7 +151,7 @@ struct AccountLedger {
                     id: "repayment-\(repayment.persistentModelID)",
                     date: repayment.date,
                     title: "Repayment from \(repayment.loan?.friendName ?? "friend")",
-                    subtitle: repayment.bankName.isEmpty ? "Cash" : repayment.bankName,
+                    subtitle: repayment.bankName.isEmpty ? "Cash" : BankName.display(repayment.bankName),
                     effect: repayment.amount,
                     transfer: nil
                 )
@@ -162,7 +167,7 @@ struct AccountLedger {
                     id: "borrowed-\(borrowing.persistentModelID)",
                     date: borrowing.date,
                     title: "Borrowed from \(borrowing.friendName)",
-                    subtitle: borrowing.bankName.isEmpty ? "Cash" : borrowing.bankName,
+                    subtitle: borrowing.bankName.isEmpty ? "Cash" : BankName.display(borrowing.bankName),
                     effect: borrowing.amount,
                     transfer: nil
                 )
@@ -177,7 +182,7 @@ struct AccountLedger {
                     id: "borrow-payment-\(payment.persistentModelID)",
                     date: payment.date,
                     title: "Repaid \(payment.borrowing?.friendName ?? "friend")",
-                    subtitle: payment.bankName.isEmpty ? "Cash" : payment.bankName,
+                    subtitle: payment.bankName.isEmpty ? "Cash" : BankName.display(payment.bankName),
                     effect: -payment.amount,
                     transfer: nil
                 )
@@ -223,12 +228,44 @@ struct AccountLedger {
             }
         }
 
+        // A friend who paid you for their purchase on your card: their share of the card is now yours to pay.
+        for repayment in repayments where repayment.isCardShareReceived && repayment.date <= now {
+            guard let loan = repayment.loan,
+                  let card = creditCard(bank: loan.bankName, lastFour: loan.cardLastFour) else { continue }
+            built.append(Entry(
+                accountUID: card.uid,
+                line: LedgerLine(
+                    id: "card-share-\(repayment.persistentModelID)",
+                    date: repayment.date,
+                    title: "\(loan.friendName) paid you",
+                    subtitle: "Their share, now yours to pay",
+                    effect: repayment.amount,
+                    transfer: nil,
+                    movesShare: true
+                )
+            ))
+        }
+
         entries = built
 
         // Friends' card loans: what they spent on the card, less what they have paid back.
         var lent: [Entry] = []
+        var unlinkedLent: [LedgerLine] = []
         for loan in loans where loan.method == .card && loan.date <= now {
-            guard let owner = creditCard(bank: loan.bankName, lastFour: loan.cardLastFour) else { continue }
+            guard let owner = creditCard(bank: loan.bankName, lastFour: loan.cardLastFour) else {
+                // A card that isn't one of your accounts: the friend's share is on no card at all.
+                if !loan.isRepaid {
+                    unlinkedLent.append(LedgerLine(
+                        id: "card-loan-unlinked-\(loan.persistentModelID)",
+                        date: loan.date,
+                        title: "Lent to \(loan.friendName) on your card",
+                        subtitle: loan.cardDescription ?? "Card",
+                        effect: loan.outstandingAmount,
+                        transfer: nil
+                    ))
+                }
+                continue
+            }
             // A friend's EMI is billed one instalment a month, as on the card statement. Any other loan is billed whole.
             for charge in loan.cardCharges(upTo: now) {
                 lent.append(Entry(
@@ -260,6 +297,7 @@ struct AccountLedger {
             ))
         }
         lentEntries = lent
+        unlinkedCardLoans = unlinkedLent
     }
 
     // MARK: Results
@@ -283,9 +321,8 @@ struct AccountLedger {
     var unlinked: [LedgerLine] {
         guard let earliest = accounts.map(\.openingDate).min() else { return [] }
         let start = Calendar.current.startOfDay(for: earliest)
-        return entries
-            .filter { $0.accountUID == nil && $0.line.date >= start }
-            .map(\.line)
+        return (entries.filter { $0.accountUID == nil }.map(\.line) + unlinkedCardLoans)
+            .filter { $0.date >= start }
             .sorted { $0.date > $1.date }
     }
 

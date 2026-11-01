@@ -441,7 +441,7 @@ private struct IncomeRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(income.displayTitle)
                     .font(.body.weight(.medium))
-                Text(income.bankName.isEmpty ? income.source.rawValue : income.bankName)
+                Text((income.date > .now ? "Expected · " : "") + (income.bankName.isEmpty ? income.source.rawValue : BankName.display(income.bankName)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -70,7 +70,7 @@ struct ExpenseFormView: View {
 
         var title: String {
             if !nickname.isEmpty { return nickname }
-            let bank = bankName.isEmpty ? accountType.rawValue : bankName
+            let bank = bankName.isEmpty ? accountType.rawValue : BankName.display(bankName)
             return cardLastFour.isEmpty ? bank : "\(bank) •••• \(cardLastFour)"
         }
     }
@@ -245,7 +245,7 @@ struct ExpenseFormView: View {
                         Button {
                             bankName = bank
                         } label: {
-                            Text(bank)
+                            Text(BankName.display(bank))
                                 .font(.caption)
                                 .fontWeight(isSelected ? .semibold : .regular)
                                 .foregroundStyle(isSelected ? .white : .primary)

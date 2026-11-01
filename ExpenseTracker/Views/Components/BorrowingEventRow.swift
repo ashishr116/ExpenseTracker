@@ -15,14 +15,14 @@ struct BorrowingEventRow: View {
 
     init(borrowing: Borrowing) {
         title = "Borrowed from \(borrowing.friendName)"
-        subtitle = borrowing.bankName.isEmpty ? "Cash" : borrowing.bankName
+        subtitle = borrowing.bankName.isEmpty ? "Cash" : BankName.display(borrowing.bankName)
         amount = borrowing.amount
         isIncoming = true
     }
 
     init(payment: BorrowingPayment) {
         title = "Repaid \(payment.borrowing?.friendName ?? "friend")"
-        subtitle = payment.bankName.isEmpty ? "Cash" : payment.bankName
+        subtitle = payment.bankName.isEmpty ? "Cash" : BankName.display(payment.bankName)
         amount = payment.amount
         isIncoming = false
     }

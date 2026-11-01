@@ -189,7 +189,7 @@ enum SavingsSweep {
         in context: ModelContext
     ) {
         let leftover = leftover(for: month, in: context)
-        let record = MonthlySavings(month: month, leftover: leftover, applied: 0, bankName: pair?.to.displayName ?? bank)
+        let record = MonthlySavings(month: month, leftover: leftover, applied: 0, bankName: pair?.to.storedName ?? bank)
         context.insert(record)
         guard leftover > 0 else { return }
 

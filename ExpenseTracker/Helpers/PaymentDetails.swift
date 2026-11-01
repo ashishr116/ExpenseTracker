@@ -44,7 +44,7 @@ enum PaymentDetails {
     /// "Card: HDFC Bank credit card ending 0214", for a loan on one of your cards.
     static func cardLine(for loan: Loan) -> String {
         let type = loan.accountType.rawValue.lowercased()
-        let name = loan.bankName.isEmpty ? type : "\(loan.bankName) \(type)"
+        let name = loan.bankName.isEmpty ? type : "\(BankName.display(loan.bankName)) \(type)"
         let digits = includesCardDigits && !loan.cardLastFour.isEmpty ? " ending \(loan.cardLastFour)" : ""
         return "Card: \(name)\(digits)"
     }

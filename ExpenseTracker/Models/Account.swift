@@ -46,6 +46,9 @@ final class Account {
     var cardLastFour: String = ""
     /// What the account held on `openingDate`. For a credit card, what was owed.
     var openingBalancePaise: Int64 = 0
+    /// For a credit card: the part of the opening amount owed that was spent since the last bill, so it is not
+    /// on a bill yet. The rest of the opening amount is on a bill already. 0 means all of it is billed.
+    var openingUnbilledPaise: Int64 = 0
     /// Entries before this day are ignored; the opening balance already includes them.
     var openingDate: Date = Date.now
     var isArchived: Bool = false
@@ -77,19 +80,29 @@ final class Account {
         set { openingBalancePaise = Money.paise(from: newValue) }
     }
 
-    var displayName: String {
+    var openingUnbilled: Decimal {
+        get { Money.amount(fromPaise: openingUnbilledPaise) }
+        set { openingUnbilledPaise = Money.paise(from: newValue) }
+    }
+
+    var displayName: String { label(bank: BankName.display(bankName)) }
+
+    /// The name with the bank as stored (capitals). For saving or matching, never for display.
+    var storedName: String { label(bank: bankName) }
+
+    private func label(bank: String) -> String {
         if !name.isEmpty { return name }
         switch kind {
         case .cash: return "Cash"
-        case .bank: return bankName.isEmpty ? "Bank Account" : bankName
-        case .creditCard: return bankName.isEmpty ? "Credit Card" : "\(bankName) Card"
+        case .bank: return bank.isEmpty ? "Bank Account" : bank
+        case .creditCard: return bank.isEmpty ? "Credit Card" : "\(bank) Card"
         }
     }
 
     /// e.g. "HDFC Bank · •••• 1234"
     var detail: String {
         var parts: [String] = []
-        if !bankName.isEmpty { parts.append(bankName) }
+        if !bankName.isEmpty { parts.append(BankName.display(bankName)) }
         if !cardLastFour.isEmpty { parts.append("•••• \(cardLastFour)") }
         return parts.joined(separator: " · ")
     }

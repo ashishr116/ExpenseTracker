@@ -125,7 +125,10 @@ struct AccountDetailView: View {
 
             if account.kind == .creditCard, !account.isArchived {
                 billSection(statement: card.flatMap {
-                    CardBill.statement(for: $0, lines: lines, lentLines: lentLines, owed: balance + lent)
+                    CardBill.statement(
+                        for: $0, lines: lines, lentLines: lentLines, owed: balance + lent,
+                        openingUnbilled: account.openingUnbilled, openingDate: account.openingDate
+                    )
                 })
             }
 
@@ -220,7 +223,16 @@ struct AccountDetailView: View {
             switch billTab {
             case .unbilled:
                 // Spending since the bill was generated. Payments are shown against the bill they pay.
-                return all.filter { $0.date >= current.end && $0.effect > 0 }
+                var spent = all.filter { $0.date >= current.end && $0.effect > 0 }
+                // What was on the card, unbilled, when it was added.
+                if account.openingUnbilled > 0, account.openingDate >= current.end {
+                    spent.append(LedgerLine(
+                        id: "opening-unbilled", date: account.openingDate, title: "Unbilled When Added",
+                        subtitle: "Part of the opening balance", effect: account.openingUnbilled, transfer: nil
+                    ))
+                    spent.sort { $0.date > $1.date }
+                }
+                return spent
             case .billed:
                 guard let shown else { return [] }
                 // For the latest bill, payments made since it was generated are shown too, so what is left is clear.
@@ -387,7 +399,7 @@ struct AccountDetailView: View {
     private func sendReminder(_ channel: ReminderChannel) {
         guard let share = remindingShare, let due = card?.nextDueDate() else { return }
         var message = LoanReminder(friendName: share.friendName, loans: share.loans, phone: share.phone)
-        let cardName = account.bankName.isEmpty ? "credit card" : "\(account.bankName) credit card"
+        let cardName = account.bankName.isEmpty ? "credit card" : "\(BankName.display(account.bankName)) credit card"
         message.billDue = CardBillDue(cardName: cardName, date: due)
 
         switch channel {

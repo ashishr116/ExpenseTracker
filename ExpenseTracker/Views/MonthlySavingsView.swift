@@ -80,7 +80,7 @@ struct MonthlySavingsView: View {
 
     private var summarySection: some View {
         Section {
-            LabeledContent("Savings Account", value: bank)
+            LabeledContent("Savings Account", value: BankName.display(bank))
             LabeledContent("Added So Far") {
                 Text(totalAdded, format: .rupees)
                     .font(.title3.weight(.bold))
@@ -91,7 +91,7 @@ struct MonthlySavingsView: View {
                     .foregroundStyle(thisMonthLeftover >= 0 ? Color.primary : Color.red)
             }
         } footer: {
-            Text("This month's leftover is added to \(bank) when the month ends. It starts from \(Date(timeIntervalSince1970: start).formatted(.dateTime.month(.wide).year())).")
+            Text("This month's leftover is added to \(BankName.display(bank)) when the month ends. It starts from \(Date(timeIntervalSince1970: start).formatted(.dateTime.month(.wide).year())).")
         }
     }
 
@@ -127,7 +127,7 @@ private struct SavingsRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(record.month, format: .dateTime.month(.wide).year())
                         .font(.body.weight(.medium))
-                    Text(record.applied > 0 ? "Added to \(record.bankName)" : "Nothing left to add")
+                    Text(record.applied > 0 ? "Added to \(BankName.display(record.bankName))" : "Nothing left to add")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -308,7 +308,7 @@ struct SavingsSweepSetupView: View {
                         Button {
                             bankName = name
                         } label: {
-                            Text(name)
+                            Text(BankName.display(name))
                                 .font(.caption)
                                 .fontWeight(isSelected ? .semibold : .regular)
                                 .foregroundStyle(isSelected ? .white : .primary)
@@ -333,7 +333,7 @@ struct SavingsSweepSetupView: View {
             savedFromUID = fromUID
             savedToUID = toUID
             // Shown on the Monthly Savings screen.
-            savedBank = allAccounts.first { $0.uid == toUID }?.displayName ?? ""
+            savedBank = allAccounts.first { $0.uid == toUID }?.storedName ?? ""
         } else {
             savedBank = trimmedBank
             // Make sure the account shows up in Net Worth straight away.

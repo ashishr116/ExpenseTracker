@@ -24,6 +24,8 @@ struct RecurringExpenseFormView: View {
     @State private var accountType: AccountType
     @State private var bankName: String
     @State private var cardLastFour: String
+    /// A credit card saved for the first time by this plan, while its bill day is being asked.
+    @State private var cardAskingBillDay: PaymentCard?
 
     init(plan: RecurringExpense? = nil) {
         self.plan = plan
@@ -117,6 +119,10 @@ struct RecurringExpenseFormView: View {
             }
             .navigationTitle(plan == nil ? "New Monthly Payment" : "Edit Monthly Payment")
             .navigationBarTitleDisplayMode(.inline)
+            // The plan is already saved. Once the bill day is answered or skipped, the form closes.
+            .sheet(item: $cardAskingBillDay, onDismiss: { dismiss() }) { card in
+                BillingCycleSheet(card: card)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -134,6 +140,8 @@ struct RecurringExpenseFormView: View {
         let bank = accountType.usesBank ? trimmedBank : ""
         let digits = accountType.usesCard ? cardLastFour : ""
         let end: Date? = hasEnd ? endDate : nil
+        // The card is saved, and a credit card gets its account, so it shows under Accounts.
+        let newCard = CardSync.saveCard(accountType: accountType, bankName: bank, lastFour: digits, in: modelContext)
 
         if let plan {
             let wasPaused = !plan.isActive
@@ -159,7 +167,11 @@ struct RecurringExpenseFormView: View {
         }
         // A payment day that has already come is added now, not on the next launch.
         RecurringExpensePoster.run(in: modelContext)
-        dismiss()
+        if let newCard {
+            cardAskingBillDay = newCard
+        } else {
+            dismiss()
+        }
     }
 }
 

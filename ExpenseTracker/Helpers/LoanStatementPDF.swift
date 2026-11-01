@@ -161,10 +161,11 @@ enum LoanStatementPDF {
                 drawFriend(openLoans, on: page, showPayments: true, showName: false)
             }
 
-            if !openBorrowings.isEmpty {
+            // Every borrowing from this friend, paid off or not, as one ledger: what was borrowed, each payment, what is left.
+            if !theirsBorrowings.isEmpty {
                 page.gap(10)
                 page.heading("Money you borrowed from \(friendName)")
-                drawBorrowings(openBorrowings, on: page, showPayments: true, showName: false)
+                drawBorrowingLedger(theirsBorrowings, on: page)
             }
 
             let repaidLoans = theirsLoans.filter(\.isRepaid)
@@ -172,15 +173,6 @@ enum LoanStatementPDF {
                 page.gap(8)
                 page.text(
                     "\(repaidLoans.count) other loan\(repaidLoans.count == 1 ? " is" : "s are") fully repaid.",
-                    font: .italicSystemFont(ofSize: 10), color: .darkGray
-                )
-            }
-
-            let repaidBorrowings = theirsBorrowings.filter(\.isRepaid)
-            if !repaidBorrowings.isEmpty {
-                page.gap(4)
-                page.text(
-                    "\(repaidBorrowings.count) other borrowed debt\(repaidBorrowings.count == 1 ? " is" : "s are") fully repaid.",
                     font: .italicSystemFont(ofSize: 10), color: .darkGray
                 )
             }
@@ -256,10 +248,14 @@ enum LoanStatementPDF {
             page.text("Money borrowed from \(first.friendName):", font: .boldSystemFont(ofSize: 10), color: .darkGray)
             for borrowing in borrowings.sorted(by: { $0.date < $1.date }) {
                 let date = borrowing.date.formatted(.dateTime.day().month(.abbreviated).year())
-                let method = borrowing.bankName.isEmpty ? "Cash" : "Bank transfer (\(borrowing.bankName))"
+                let method = borrowing.bankName.isEmpty ? "Cash" : "Bank transfer (\(BankName.display(borrowing.bankName)))"
                 var title = "\(date) · \(method)"
                 if !borrowing.note.isEmpty { title += " · \(borrowing.note)" }
-                page.row(title, "\(borrowing.outstandingAmount.formatted(.rupees)) owed", font: .systemFont(ofSize: 11), rightFont: .systemFont(ofSize: 11))
+                page.row(
+                title,
+                borrowing.isRepaid ? "Paid in full" : "\(borrowing.outstandingAmount.formatted(.rupees)) owed",
+                font: .systemFont(ofSize: 11), rightFont: .systemFont(ofSize: 11)
+            )
 
                 var detail = "Amount \(borrowing.amount.formatted(.rupees))"
                 if borrowing.paidAmount > 0 { detail += " · paid back \(borrowing.paidAmount.formatted(.rupees))" }
@@ -282,6 +278,50 @@ enum LoanStatementPDF {
         }
     }
 
+    /// A short ledger of money borrowed from one friend: the totals, then a table of each amount borrowed and each
+    /// payment back, by date, with the balance left after each line.
+    private static func drawBorrowingLedger(_ borrowings: [Borrowing], on page: PDFPage) {
+        let borrowed = borrowings.reduce(Decimal(0)) { $0 + $1.amount }
+        let paid = borrowings.reduce(Decimal(0)) { $0 + $1.paidAmount }
+        let left = borrowings.outstandingTotal
+
+        page.row("Total borrowed", borrowed.formatted(.rupees), font: .systemFont(ofSize: 12))
+        page.row("Total paid back", paid.formatted(.rupees), font: .systemFont(ofSize: 12))
+        page.row("Balance left", left.formatted(.rupees), font: .boldSystemFont(ofSize: 13))
+        page.gap(8)
+
+        // Borrowed amounts and payments, oldest first. A borrowing lands before a payment on the same day.
+        struct Line {
+            let date: Date
+            let what: String
+            let change: Decimal
+            let isBorrow: Bool
+        }
+        var lines: [Line] = []
+        for borrowing in borrowings {
+            var what = "Borrowed"
+            if !borrowing.note.isEmpty { what += " · \(borrowing.note)" }
+            lines.append(Line(date: borrowing.date, what: what, change: borrowing.amount, isBorrow: true))
+            for payment in borrowing.payments {
+                lines.append(Line(date: payment.date, what: "Paid back", change: -payment.amount, isBorrow: false))
+            }
+        }
+        lines.sort { ($0.date, $0.isBorrow ? 0 : 1) < ($1.date, $1.isBorrow ? 0 : 1) }
+
+        page.tableRow(["Date", "Details", "Amount", "Balance"], bold: true, shaded: true)
+        var running = Decimal(0)
+        for line in lines {
+            running += line.change
+            page.tableRow([
+                line.date.formatted(.dateTime.day().month(.abbreviated).year()),
+                line.what,
+                (line.change >= 0 ? "+" : "−") + abs(line.change).formatted(.rupees),
+                running.formatted(.rupees)
+            ])
+        }
+        page.tableRow(["", "Balance left", "", left.formatted(.rupees)], bold: true, shaded: true)
+    }
+
     /// One friend's open borrowings, with what is still owed and payments made back.
     private static func drawBorrowings(_ borrowings: [Borrowing], on page: PDFPage, showPayments: Bool, showName: Bool = true) {
         guard let first = borrowings.first else { return }
@@ -291,7 +331,7 @@ enum LoanStatementPDF {
         }
         for borrowing in borrowings.sorted(by: { $0.date < $1.date }) {
             let date = borrowing.date.formatted(.dateTime.day().month(.abbreviated).year())
-            let method = borrowing.bankName.isEmpty ? "Cash" : "Bank transfer (\(borrowing.bankName))"
+            let method = borrowing.bankName.isEmpty ? "Cash" : "Bank transfer (\(BankName.display(borrowing.bankName)))"
             var title = "\(date) · \(method)"
             if !borrowing.note.isEmpty { title += " · \(borrowing.note)" }
             page.row(title, "\(borrowing.outstandingAmount.formatted(.rupees)) owed", font: .systemFont(ofSize: 11), rightFont: .systemFont(ofSize: 11))
@@ -311,6 +351,13 @@ enum LoanStatementPDF {
                         font: .systemFont(ofSize: 9.5), color: .darkGray
                     )
                 }
+                if !borrowing.payments.isEmpty {
+                    page.row(
+                        "   Total paid back",
+                        borrowing.paidAmount.formatted(.rupees),
+                        font: .boldSystemFont(ofSize: 9.5), color: .darkGray
+                    )
+                }
             }
             page.gap(4)
         }
@@ -322,7 +369,7 @@ enum LoanStatementPDF {
         case .cash:
             return "Cash / Transfer"
         case .personalLoan:
-            return loan.bankName.isEmpty ? "Personal loan" : "Personal loan from \(loan.bankName)"
+            return loan.bankName.isEmpty ? "Personal loan" : "Personal loan from \(BankName.display(loan.bankName))"
         case .card:
             return PaymentDetails.cardLine(for: loan).replacingOccurrences(of: "Card: ", with: "")
         }
@@ -431,6 +478,37 @@ private final class PDFPage {
             in: CGRect(x: pageRect.width - margin - rightWidth, y: y, width: rightWidth, height: rightHeight)
         )
         y += height + 3
+    }
+
+    /// A row of a four-column table: date, details, amount and balance. The last two columns are right-aligned.
+    func tableRow(_ cells: [String], bold: Bool = false, shaded: Bool = false) {
+        let widths: [CGFloat] = [92, contentWidth - 92 - 112 - 112 - 18, 112, 112]
+        let aligns: [NSTextAlignment] = [.left, .left, .right, .right]
+        let font: UIFont = bold ? .boldSystemFont(ofSize: 10.5) : .systemFont(ofSize: 10.5)
+        let heights = zip(cells, widths).map { measure($0, font: font, width: $1) }
+        let height = (heights.max() ?? 14) + 6
+        ensureSpace(height)
+
+        if shaded {
+            UIColor(white: 0.93, alpha: 1).setFill()
+            UIBezierPath(rect: CGRect(x: margin, y: y, width: contentWidth, height: height)).fill()
+        }
+        var x = margin
+        for index in cells.indices {
+            draw(
+                cells[index], font: font, color: .black, alignment: aligns[index],
+                in: CGRect(x: x + 3, y: y + 3, width: widths[index] - 6, height: height - 6)
+            )
+            x += widths[index] + 6
+        }
+        // A hairline under every row keeps the table easy to read across.
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: margin, y: y + height))
+        path.addLine(to: CGPoint(x: margin + contentWidth, y: y + height))
+        UIColor(white: 0.85, alpha: 1).setStroke()
+        path.lineWidth = 0.5
+        path.stroke()
+        y += height
     }
 
     private func attributes(font: UIFont, color: UIColor, alignment: NSTextAlignment) -> [NSAttributedString.Key: Any] {

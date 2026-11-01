@@ -148,7 +148,7 @@ private struct CardTile: View {
             // Header: Bank & Nickname + Card Type Pill + Show/Hide Button
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(card.bankName.isEmpty ? "Card" : card.bankName)
+                    Text(card.bankName.isEmpty ? "Card" : BankName.display(card.bankName))
                         .font(.headline)
                         .foregroundStyle(.white)
                     if !card.nickname.isEmpty {

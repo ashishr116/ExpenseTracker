@@ -110,7 +110,7 @@ final class PaymentCard {
 
     var displayName: String {
         if !nickname.isEmpty { return nickname }
-        let bank = bankName.isEmpty ? accountType.rawValue : bankName
+        let bank = bankName.isEmpty ? accountType.rawValue : BankName.display(bankName)
         return cardLastFour.isEmpty ? bank : "\(bank) •••• \(cardLastFour)"
     }
 

@@ -28,7 +28,7 @@ SwiftData records saved on the device. Money is stored as whole paise and read b
 ## `Loan.swift`
 - `LoanMethod`: cash/transfer, used my card, or personal loan in my name.
 - `Loan`: money lent to a friend. Supports part payments, an instalment count and amount (for a personal loan or a friend's EMI on your card), and a monthly reminder day. On a card, a friend's EMI is billed one instalment a month (`cardCharges`), like the bank's statement, rather than whole.
-- `LoanRepayment`: one payment received from the friend. Only repayments of cash loans count as income.
+- `LoanRepayment`: one payment received from the friend. Only repayments of cash loans count as income. For a loan on your card, `receivedByMe` marks a payment the friend sent to you instead of the card: it raises your account and moves their share of the card to yours.
 
 ## `CategoryBudget.swift`
 - `CategoryBudget`: a monthly spending limit for one category. The same limit applies to every month, and only money actually spent counts, not EMIs or premiums still unpaid.

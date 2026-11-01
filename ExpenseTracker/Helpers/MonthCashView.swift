@@ -38,7 +38,7 @@ struct MonthCashView {
     var hasCardActivity: Bool { cardSpent > 0 || billsPaid > 0 }
 
     /// - Parameters:
-    ///   - expenses: The month's expenses. EMIs and premiums not yet paid are left out here.
+    ///   - expenses: The month's expenses. EMIs and premiums not yet paid are left out here, except those on a credit card whose billing date has come.
     ///   - cardPayments: The month's transfers. Only card bill payments are counted.
     init(
         income: Decimal,
@@ -47,13 +47,18 @@ struct MonthCashView {
         cashLent: Decimal,
         cashRepaid: Decimal,
         borrowed: Decimal = 0,
-        paidBack: Decimal = 0
+        paidBack: Decimal = 0,
+        now: Date = .now
     ) {
         let paid = expenses.filter { !$0.isPlanned }
-        let onCards = paid.filter { $0.accountType == .creditCard }
+        // An EMI or premium on a credit card is on the card from its billing date, marked paid or not,
+        // as in the card's balance. It doesn't change cash, which only moves when the bill is paid.
+        let onCards = expenses.filter {
+            $0.accountType == .creditCard && (!$0.isPlanned || ($0.isBilledToCard && $0.date <= now))
+        }
 
         cardSpent = onCards.totalAmount
-        cashSpent = paid.totalAmount - cardSpent
+        cashSpent = paid.filter { $0.accountType != .creditCard }.totalAmount
         billsPaid = cardPayments.filter(\.isCardBillPayment).reduce(Decimal(0)) { $0 + $1.amount }
         cashLeft = income - cashSpent - billsPaid - cashLent + cashRepaid + borrowed - paidBack
 

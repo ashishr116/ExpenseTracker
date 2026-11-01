@@ -172,7 +172,7 @@ struct LoanFormView: View {
         let cardLastFour: String
 
         var title: String {
-            let bank = bankName.isEmpty ? accountType.rawValue : bankName
+            let bank = bankName.isEmpty ? accountType.rawValue : BankName.display(bankName)
             return cardLastFour.isEmpty ? bank : "\(bank) •••• \(cardLastFour)"
         }
     }
@@ -247,7 +247,7 @@ struct LoanFormView: View {
                         Picker("Paid From", selection: $paidFrom) {
                             Text("Cash").tag("")
                             ForEach(paidFromChoices, id: \.self) { bank in
-                                Text(bank).tag(bank)
+                                Text(BankName.display(bank)).tag(bank)
                             }
                         }
                     }

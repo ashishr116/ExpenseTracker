@@ -26,6 +26,8 @@ struct EMIFormView: View {
     @State private var includedInNetWorth: Bool
     /// How many past instalments are already paid. `nil` until changed, then it follows the schedule.
     @State private var paidOverride: Int?
+    /// A credit card saved for the first time by this EMI, while its bill day is being asked.
+    @State private var cardAskingBillDay: PaymentCard?
 
     init(emi: EMI? = nil) {
         self.emi = emi
@@ -146,6 +148,10 @@ struct EMIFormView: View {
             }
             .navigationTitle(emi == nil ? "New EMI" : "Edit EMI")
             .navigationBarTitleDisplayMode(.inline)
+            // The EMI is already saved. Once the bill day is answered or skipped, the form closes.
+            .sheet(item: $cardAskingBillDay, onDismiss: { dismiss() }) { card in
+                BillingCycleSheet(card: card)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -163,6 +169,8 @@ struct EMIFormView: View {
 
         let trimmedBank = accountType.usesBank ? BankName.normalized(bankName) : ""
         let card = accountType.usesCard ? cardLastFour : ""
+        // The card is saved, and a credit card gets its account, so it shows under Accounts.
+        let newCard = CardSync.saveCard(accountType: accountType, bankName: trimmedBank, lastFour: card, in: modelContext)
 
         let target: EMI
         if let emi {
@@ -194,7 +202,11 @@ struct EMIFormView: View {
         }
         // Only a new EMI gets past instalments recorded as paid; an edited one keeps its own history.
         target.regenerateInstallments(in: modelContext, markingFirstPaid: emi == nil ? alreadyPaid : 0)
-        dismiss()
+        if let newCard {
+            cardAskingBillDay = newCard
+        } else {
+            dismiss()
+        }
     }
 }
 

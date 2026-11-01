@@ -124,12 +124,14 @@ private struct EMIRecurringRow: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(installment.isPlanned ? .orange : .green)
             }
-            .layoutPriority(1)
 
             Spacer()
 
+            // The amount never wraps: the description beside it gives way instead.
             Text(installment.amount, format: .rupees)
                 .fontWeight(.semibold)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.vertical, 2)
     }
@@ -166,12 +168,14 @@ private struct RecurringRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .layoutPriority(1)
 
             Spacer()
 
+            // The amount never wraps: the description beside it gives way instead.
             Text(plan.amount, format: .rupees)
                 .fontWeight(.semibold)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.vertical, 2)
     }

@@ -122,6 +122,15 @@ final class BorrowingPayment {
         get { Money.amount(fromPaise: amountPaise) }
         set { amountPaise = Money.paise(from: newValue) }
     }
+
+    /// The payment's details as plain values, so a message can be built without holding the model.
+    struct Snapshot {
+        let date: Date
+        let amount: Decimal
+        let bankName: String
+    }
+
+    var snapshot: Snapshot { Snapshot(date: date, amount: amount, bankName: bankName) }
 }
 
 extension Sequence where Element == BorrowingPayment {

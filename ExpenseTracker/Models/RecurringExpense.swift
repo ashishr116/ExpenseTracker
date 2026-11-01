@@ -69,7 +69,7 @@ final class RecurringExpense {
     /// e.g. "Credit Card · HDFC Bank · •••• 0214", or "Cash".
     var paymentDescription: String {
         var parts = [accountType.rawValue]
-        if !bankName.isEmpty { parts.append(bankName) }
+        if !bankName.isEmpty { parts.append(BankName.display(bankName)) }
         if !cardLastFour.isEmpty { parts.append("•••• \(cardLastFour)") }
         return parts.joined(separator: " · ")
     }

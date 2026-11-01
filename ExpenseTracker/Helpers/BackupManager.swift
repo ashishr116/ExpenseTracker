@@ -112,6 +112,8 @@ struct AccountDTO: Codable {
     var bankName: String
     var cardLastFour: String
     var openingBalancePaise: Int64
+    /// Missing in backups made before a card's opening balance could be part unbilled.
+    var openingUnbilledPaise: Int64?
     var openingDate: Date
     var isArchived: Bool
     var createdAt: Date
@@ -198,6 +200,7 @@ struct RepaymentDTO: Codable {
     var date: Date
     var note: String
     var bankName: String
+    var receivedByMe: Bool?
     /// Position in `loans`.
     var loan: Int?
 }
@@ -315,7 +318,7 @@ enum BackupManager {
             AccountDTO(
                 uid: $0.uid, name: $0.name, kindRaw: $0.kindRaw, bankName: $0.bankName,
                 cardLastFour: $0.cardLastFour, openingBalancePaise: $0.openingBalancePaise,
-                openingDate: $0.openingDate, isArchived: $0.isArchived, createdAt: $0.createdAt
+                openingUnbilledPaise: $0.openingUnbilledPaise, openingDate: $0.openingDate, isArchived: $0.isArchived, createdAt: $0.createdAt
             )
         }
         file.incomes = try all(Income.self).map {
@@ -367,7 +370,7 @@ enum BackupManager {
         file.repayments = try all(LoanRepayment.self).map { repayment in
             RepaymentDTO(
                 amountPaise: Money.paise(from: repayment.amount), date: repayment.date, note: repayment.note,
-                bankName: repayment.bankName,
+                bankName: repayment.bankName, receivedByMe: repayment.receivedByMe,
                 loan: repayment.loan.flatMap { loanIndex[$0.persistentModelID] }
             )
         }
@@ -469,6 +472,7 @@ enum BackupManager {
                 openingDate: dto.openingDate
             )
             account.uid = dto.uid
+            account.openingUnbilledPaise = dto.openingUnbilledPaise ?? 0
             account.isArchived = dto.isArchived
             account.createdAt = dto.createdAt
             context.insert(account)
@@ -550,6 +554,7 @@ enum BackupManager {
                 amount: Money.amount(fromPaise: dto.amountPaise), date: dto.date, note: dto.note,
                 bankName: dto.bankName
             )
+            repayment.receivedByMe = dto.receivedByMe ?? false
             context.insert(repayment)
             if let index = dto.loan, loans.indices.contains(index) { repayment.loan = loans[index] }
         }

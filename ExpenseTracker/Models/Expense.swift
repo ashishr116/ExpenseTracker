@@ -195,7 +195,7 @@ final class Expense {
     /// e.g. "Credit Card · HDFC Bank · •••• 1234"
     var accountDescription: String {
         var parts = [accountType.rawValue]
-        if !bankName.isEmpty { parts.append(bankName) }
+        if !bankName.isEmpty { parts.append(BankName.display(bankName)) }
         if !cardLastFour.isEmpty { parts.append("•••• \(cardLastFour)") }
         return parts.joined(separator: " · ")
     }

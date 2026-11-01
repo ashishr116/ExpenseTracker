@@ -17,6 +17,26 @@ enum BankName {
         let lhs = normalized(lhs)
         return !lhs.isEmpty && lhs == normalized(rhs)
     }
+
+    /// Names that stay in capitals on screen.
+    private static let acronyms: Set<String> = [
+        "ICICI", "HDFC", "SBI", "IDFC", "FIRST", "HSBC", "RBL", "PNB", "IDBI", "UCO", "AU", "DBS", "BOB", "HDFCBANK"
+    ]
+
+    /// How a bank name is shown on screen. Stored names are in capitals ("ICICI BANK"); this reads
+    /// "ICICI Bank" and keeps acronyms like HDFC and SBI. Words with lowercase letters are left alone.
+    /// Display only: never save this value or compare with it, use `normalized` and `matches`.
+    static func display(_ value: String) -> String {
+        let words = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: " ", omittingEmptySubsequences: true)
+        return words.enumerated().map { index, word in
+            let text = String(word)
+            guard text == text.uppercased(), text != text.lowercased() else { return text }
+            if acronyms.contains(text) { return text }
+            if index > 0, text == "OF" || text == "AND" { return text.lowercased() }
+            return text.capitalized
+        }.joined(separator: " ")
+    }
 }
 
 /// Keeps Saved Cards in step with credit cards added under Accounts.
@@ -99,6 +119,33 @@ enum CardSync {
             }
         }
         try? context.save()
+    }
+
+    /// Makes sure a card chosen on a form is saved, and that a credit card has its account, so it shows under
+    /// Accounts and its entries have a balance to land on.
+    ///
+    /// - Returns: The card when it was saved for the first time, so the form can ask for its bill day. `nil` when
+    ///   the card was already saved, or there is no card to save.
+    @MainActor
+    @discardableResult
+    static func saveCard(accountType: AccountType, bankName: String, lastFour: String, in context: ModelContext) -> PaymentCard? {
+        guard accountType.usesCard else { return nil }
+        let bank = BankName.normalized(bankName)
+        let digits = String(lastFour.filter(\.isNumber).suffix(4))
+        guard !bank.isEmpty || !digits.isEmpty else { return nil }
+
+        let cards = (try? context.fetch(FetchDescriptor<PaymentCard>())) ?? []
+        let alreadySaved = cards.contains {
+            $0.accountType == accountType && BankName.matches($0.bankName, bank) && $0.cardLastFour == digits
+        }
+        var created: PaymentCard?
+        if !alreadySaved {
+            let card = PaymentCard(bankName: bank, cardLastFour: digits, accountType: accountType)
+            context.insert(card)
+            created = card
+        }
+        if accountType == .creditCard { sync(in: context) }
+        return created?.accountType == .creditCard ? created : nil
     }
 
     /// A saved credit card is the same card only when its bank and last four digits both match.

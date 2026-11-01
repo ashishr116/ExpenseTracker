@@ -182,12 +182,12 @@ struct LoanReminder: Identifiable {
         case .personalLoan:
             return loan.bankName.isEmpty
                 ? "Personal loan taken in my name"
-                : "Personal loan from \(loan.bankName) taken in my name"
+                : "Personal loan from \(BankName.display(loan.bankName)) taken in my name"
         case .card:
             let cardType = loan.accountType.rawValue.lowercased()
             return loan.bankName.isEmpty
                 ? "Used my \(cardType)"
-                : "Used my \(loan.bankName) \(cardType)"
+                : "Used my \(BankName.display(loan.bankName)) \(cardType)"
         }
     }
 }

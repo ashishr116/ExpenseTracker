@@ -64,7 +64,7 @@ struct PaymentSourceFields: View {
                         Button {
                             bankName = bank
                         } label: {
-                            Text(bank)
+                            Text(BankName.display(bank))
                                 .font(.caption)
                                 .fontWeight(isSelected ? .semibold : .regular)
                                 .foregroundStyle(isSelected ? .white : .primary)

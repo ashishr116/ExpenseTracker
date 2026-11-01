@@ -134,10 +134,10 @@ final class Loan {
         case .cash:
             return nil
         case .personalLoan:
-            return bankName.isEmpty ? "Personal loan" : "Personal loan · \(bankName)"
+            return bankName.isEmpty ? "Personal loan" : "Personal loan · \(BankName.display(bankName))"
         case .card:
             var parts = [accountType.rawValue]
-            if !bankName.isEmpty { parts.append(bankName) }
+            if !bankName.isEmpty { parts.append(BankName.display(bankName)) }
             if !cardLastFour.isEmpty { parts.append("•••• \(cardLastFour)") }
             return parts.joined(separator: " · ")
         }
@@ -321,6 +321,9 @@ final class LoanRepayment {
     var note: String = ""
     /// The bank account the money arrived in. Empty means cash.
     var bankName: String = ""
+    /// For a loan on your card: the friend paid you rather than the card. The money is in your account, and
+    /// their share of the card is now yours to pay.
+    var receivedByMe: Bool = false
     var loan: Loan?
 
     init(amount: Decimal, date: Date = .now, note: String = "", bankName: String = "") {
@@ -337,6 +340,10 @@ final class LoanRepayment {
 
     /// Money back that counts as income in cash flow: repayments of cash or transfer loans only.
     var isCashInflow: Bool { loan?.countsInCashFlow ?? true }
+
+    /// A friend paid you their share of your card. It raises your account, and the card bill you pay with it
+    /// lowers it again, so it counts in cash left but not as income.
+    var isCardShareReceived: Bool { receivedByMe && loan?.method == .card }
 }
 
 extension Sequence where Element == LoanRepayment {

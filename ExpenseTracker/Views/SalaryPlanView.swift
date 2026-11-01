@@ -32,12 +32,12 @@ struct SalaryPlanFields: View {
             } else {
                 Picker("Credited To", selection: $bankName) {
                     ForEach(bankChoices, id: \.self) { bank in
-                        Text(bank).tag(bank)
+                        Text(BankName.display(bank)).tag(bank)
                     }
                 }
             }
         } footer: {
-            Text("Your salary is added to your income on this day each month, starting this month, so you don't have to enter it. If you add a salary yourself for a month, that month isn't added again. In a month without that day, it falls on the last day.")
+            Text("Your salary is added to your income on this day each month, starting this month, so you don't have to enter it. If you add a salary yourself for a month, that month isn't added again. In a month without that day, it falls on the last day. If your salary arrives at the end of the month for the month ahead, choose day 1 so each month's budget shows the salary that pays for it.")
         }
     }
 }
@@ -73,11 +73,12 @@ struct SalarySettingsView: View {
             if SalaryPlanStore.current != nil {
                 Section {
                     Button("Stop Adding Salary Automatically", role: .destructive) {
+                        SalaryPlanStore.removeUpcoming(in: modelContext)
                         SalaryPlanStore.turnOff()
                         dismiss()
                     }
                 } footer: {
-                    Text("Salary already added stays in your income.")
+                    Text("Salary already received stays in your income. Coming months added ahead of time are removed.")
                 }
             }
         }
@@ -87,6 +88,8 @@ struct SalarySettingsView: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
                     guard let amount else { return }
+                    // Coming months are added again with the new amount, day and bank.
+                    SalaryPlanStore.removeUpcoming(in: modelContext)
                     SalaryPlanStore.save(SalaryPlan(amount: amount, day: day, bankName: bankName))
                     SalaryPlanStore.postDue(in: modelContext)
                     dismiss()

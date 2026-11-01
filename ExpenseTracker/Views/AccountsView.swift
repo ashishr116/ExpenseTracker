@@ -35,6 +35,16 @@ struct AccountsView: View {
         return savedCards.first { $0.accountUID == account.uid }?.nextDueDate()
     }
 
+    /// Cash, transfer and personal loans friends still owe. Loans on your card are in "Friends Owe on Cards".
+    private var friendsOweMe: Decimal {
+        loans.filter { !$0.isRepaid && $0.method != .card }.outstandingTotal
+    }
+
+    /// Money borrowed from friends and not yet paid back.
+    private var iOweFriends: Decimal {
+        borrowings.filter { !$0.isRepaid }.outstandingTotal
+    }
+
     private var activeAccounts: [Account] { accounts.filter { !$0.isArchived } }
     private var archivedAccounts: [Account] { accounts.filter(\.isArchived) }
 
@@ -137,6 +147,27 @@ struct AccountsView: View {
                 LabeledContent("Friends Owe on Cards") {
                     Text(ledger.lentTotal, format: .rupees)
                         .foregroundStyle(.orange)
+                }
+            }
+            // Money out with friends, apart from card purchases (those are the line above). Not in Net.
+            if friendsOweMe > 0 {
+                NavigationLink {
+                    LoansView()
+                } label: {
+                    LabeledContent("Friends Owe Me") {
+                        Text(friendsOweMe, format: .rupees)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+            if iOweFriends > 0 {
+                NavigationLink {
+                    BorrowedView()
+                } label: {
+                    LabeledContent("I Owe Friends") {
+                        Text(iOweFriends, format: .rupees)
+                            .foregroundStyle(.red)
+                    }
                 }
             }
             LabeledContent("Net") {
@@ -249,10 +280,11 @@ struct UnlinkedEntriesView: View {
         List {
             Section {
                 ForEach(lines) { line in
-                    LedgerLineRow(line: line, isLiability: false)
+                    // A friend's card loan on a card that isn't an account: what they owe, not money in.
+                    LedgerLineRow(line: line, isLiability: false, isFriendLine: line.id.hasPrefix("card-loan-unlinked"))
                 }
             } footer: {
-                Text("To link an entry, give it the same bank name, and card digits for a credit card, as one of your accounts. Cash spending needs a Cash account. Income needs a bank. Loans take the account they were paid from.")
+                Text("To link an entry, give it the same bank name, and card digits for a credit card, as one of your accounts. Cash spending needs a Cash account. Income needs a bank. Loans take the account they were paid from. A loan on your card needs that card added under Accounts.")
             }
         }
         .navigationTitle("Not Linked")

@@ -16,7 +16,48 @@ Item format:
 
 ## Queue
 
-_Empty. Add items here._
+### W-002 Consistent bank names on screen
+- Use case: bank chips and labels mix "ICICI BANK" with "HDFC Bank", "SBI", "Axis Bank".
+- Acceptance criteria: 1. Every bank chip and bank label in the expense, loan, split, borrowed, repayment and investment forms shows one style. 2. Stored values and matching do not change (an account, card or entry still links to the same bank). 3. Nothing else on screen changes.
+- Money impact: none.
+- Status: In progress (round 1 fixes done by dev, tester re-check running)
+- Rounds: 1
+- Notes: Dev added `BankName.display(_:)` (display only; stored values and matching unchanged) and applied it across chips, pickers, row subtitles, Account/PaymentCard descriptions, ledger lines, reminder and PDF text. About 30 files changed. Tester round 1: criteria 2 and 3 passed; criterion 1 failed in two places (Loan form Paid From picker, Budget Expenses By Bank & Card subtitle). Dev fixed both and also the Monthly Savings Savings Account row and footer. Not committed.
+
+### W-003 Accounts "Net" label
+- Use case: the Accounts "Net" line leaves out EMIs, what friends owe you and what you owe friends, so it differs from Net Worth.
+- Acceptance criteria: 1. The line reads "Net (accounts only)". 2. A short footnote says Net Worth on the Investments screen includes loans, borrowed money and EMIs. 3. The numbers do not change.
+- Money impact: none.
+- Status: Queue
+- Rounds: 0
+
+### W-004 One shared month-figures helper
+- Use case: Daily, Monthly, Budget, Recap and the month-end savings sweep each work out "leftover" with their own formula. They must agree.
+- Acceptance criteria: 1. One helper computes the month's income, spending, lent, repaid, borrowed, paid back, card bills paid and cash left, and all five places use it. 2. No visible change for existing data. 3. For the same month the Monthly cash left, Budget remaining and the savings sweep leftover agree, including borrowed money, a card purchase, a card bill payment and a loan.
+- Money impact: none by design. The tester compares all five before and after.
+- Status: Queue
+- Rounds: 0
+
+### W-005 Withdraw or sell an investment into an account
+- Use case: money coming back from an investment into a bank or cash is not recorded.
+- Acceptance criteria: 1. A "Withdraw" action on a holding takes an amount, an account to credit and a date. 2. That account goes up by the amount (a one-sided transfer shown as "Withdrawn"). 3. The holding's current value and invested amount go down by the amount, and it cannot withdraw more than its value. 4. Net worth is unchanged by the withdrawal itself. 5. It is not income and not spending.
+- Money impact: account up, holding down, net worth unchanged, cash left unchanged.
+- Status: Queue
+- Rounds: 0
+
+### W-006 CSV export for borrowed money
+- Use case: borrowed and repaid amounts are missing from the CSV export.
+- Acceptance criteria: 1. The export has a borrowed table (friend, amount, date, bank, due date, repaid date, note) and a payments table (friend, amount, date, bank). 2. Existing tables are unchanged. 3. Rows match what is on the Borrowed screen.
+- Money impact: none.
+- Status: Queue
+- Rounds: 0
+
+### W-007 Test reminder button
+- Use case: card bill and borrowing reminders cannot be tapped in the simulator and are hard to check.
+- Acceptance criteria: 1. A button in the notification settings schedules a test reminder in about 10 seconds, for a chosen card or debt. 2. Its text shows the real amount and friends as the real reminder would. 3. Tapping it opens that card (or the debt).
+- Money impact: none.
+- Status: Queue
+- Rounds: 0
 
 ## In progress
 

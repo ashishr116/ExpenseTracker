@@ -68,6 +68,7 @@ struct BudgetView: View {
 }
 
 private struct BudgetSummaryList: View {
+    @Environment(\.modelContext) private var modelContext
     let month: Date
     @Query private var expenses: [Expense]
     @Query private var incomes: [Income]
@@ -96,7 +97,8 @@ private struct BudgetSummaryList: View {
             expenses: expenses,
             cardPayments: transfers,
             cashLent: loansLent.totalAmount,
-            cashRepaid: cashRepayments.totalAmount,
+            // A friend's card share paid to you is in hand, and goes out again with the card bill.
+            cashRepaid: cashRepayments.totalAmount + repayments.filter(\.isCardShareReceived).totalAmount,
             borrowed: borrowed.reduce(Decimal(0)) { $0 + $1.amount },
             paidBack: borrowPayments.totalAmount
         )
@@ -234,21 +236,44 @@ private struct BudgetSummaryList: View {
         }
     }
 
+    /// The credit card bills due this month, with a note when part of it is only what has been spent so far.
+    private func cardDuesRow(_ dues: [ForecastCardBill], total: Decimal) -> some View {
+        LabeledContent {
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(total, format: .rupees)
+                    .foregroundStyle(.orange)
+                    .fontWeight(.semibold)
+                Text(dues.contains(where: \.isSoFar) ? "Mine · unbilled so far" : "Mine")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } label: {
+            Text("Card Bills Due")
+        }
+    }
+
     private var summarySection: some View {
         let income = incomes.totalAmount
         let spent = expenses.spentAmount
-        let pending = expenses.plannedAmount + scheduledFixedExpenses
+        // EMIs already on a card with a bill day are in that card's bill, so they're not counted twice.
+        let plannedPending = CardBillForecast.pendingAmount(
+            of: expenses, cardKeys: CardBillForecast.cardKeysWithBillDay(context: modelContext)
+        )
+        let pending = plannedPending + scheduledFixedExpenses
+        // Credit card bills that will leave your account this month.
+        let cardDues = CardBillForecast.dues(in: month, context: modelContext)
+        let cardDue = cardDues.reduce(Decimal(0)) { $0 + $1.amount }
         let loanedOut = loansLent.totalAmount
         let cashRepaid = cashRepayments.totalAmount
         // A plan should hold back money for EMIs and premiums that are still to be paid.
         let borrowedIn = borrowed.reduce(Decimal(0)) { $0 + $1.amount }
         let paidBack = borrowPayments.totalAmount
-        let balance = income - spent - pending - loanedOut + cashRepaid + borrowedIn - paidBack
+        let balance = income - spent - pending - cardDue - loanedOut + cashRepaid + borrowedIn - paidBack
         // When a card was used, the main figures count what left your cash. Credit card purchases wait for the bill.
         let cash = cashView
         let usesCash = cash.hasCardActivity
         let cashSpentOut = cash.cashSpent + cash.billsPaid
-        let remaining = usesCash ? cash.cashLeft - pending : balance
+        let remaining = usesCash ? cash.cashLeft - pending - cardDue : balance
 
         return Section {
             if income > 0 {
@@ -297,12 +322,16 @@ private struct BudgetSummaryList: View {
                 }
             }
 
-            if expenses.plannedAmount > 0 {
+            if plannedPending > 0 {
                 LabeledContent("Pending EMIs & Premiums") {
-                    Text(expenses.plannedAmount, format: .rupees)
+                    Text(plannedPending, format: .rupees)
                         .foregroundStyle(.orange)
                         .fontWeight(.semibold)
                 }
+            }
+
+            if cardDue > 0 {
+                cardDuesRow(cardDues, total: cardDue)
             }
 
             if loanedOut > 0 {
@@ -519,7 +548,7 @@ struct BudgetExpensesView: View {
         return grouped.map { key, items in
             let first = items[0]
             var parts: [String] = []
-            if !first.bankName.isEmpty { parts.append(first.bankName) }
+            if !first.bankName.isEmpty { parts.append(BankName.display(first.bankName)) }
             if !first.cardLastFour.isEmpty { parts.append("•••• \(first.cardLastFour)") }
             let name = parts.isEmpty ? type.rawValue : parts.joined(separator: " · ")
             return CardGroup(
@@ -654,7 +683,7 @@ private struct AccountSummary: Identifiable {
 
     var subtitle: String {
         var parts: [String] = []
-        if !bankName.isEmpty { parts.append(bankName) }
+        if !bankName.isEmpty { parts.append(BankName.display(bankName)) }
         if !cardLastFour.isEmpty { parts.append("•••• \(cardLastFour)") }
         return parts.isEmpty ? accountType.rawValue : parts.joined(separator: " · ")
     }
@@ -693,7 +722,7 @@ private struct BankIncomeSummary: Identifiable {
     let incomes: [Income]
 
     var id: String { bankName }
-    var displayName: String { bankName.isEmpty ? "Direct / Other" : bankName }
+    var displayName: String { bankName.isEmpty ? "Direct / Other" : BankName.display(bankName) }
 }
 
 private struct IncomeRow: View {
@@ -710,7 +739,7 @@ private struct IncomeRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(income.displayTitle)
                     .font(.body.weight(.medium))
-                Text(income.bankName.isEmpty ? income.source.rawValue : income.bankName)
+                Text(income.bankName.isEmpty ? income.source.rawValue : BankName.display(income.bankName))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

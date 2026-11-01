@@ -16,8 +16,9 @@ struct SalaryPlan: Equatable {
 
 /// Remembers the salary plan and adds the salary to your income each month, so you don't have to.
 ///
-/// Each month is added once, on or after the salary day, and only if you haven't already entered a salary
-/// for that month yourself. A month you delete or change is never added again.
+/// Each month is added once, and only if you haven't already entered a salary for that month yourself. It is
+/// added ahead of time, dated on its salary day, so Budget and Monthly show the coming months' income. A month
+/// you delete or change is never added again.
 enum SalaryPlanStore {
     private static let enabledKey = "salaryEnabled"
     private static let amountKey = "salaryAmountPaise"
@@ -28,6 +29,12 @@ enum SalaryPlanStore {
 
     /// Safety net so a bad start date can't loop for decades.
     private static let maximumMonths = 120
+
+    /// How many months after this one the salary is added ahead of time.
+    private static let monthsAhead = 12
+
+    /// The note on the entries added for you, which is how they are told apart from salary you entered yourself.
+    private static let autoNote = "Monthly salary"
 
     /// The saved plan, or `nil` if there is none or it is switched off.
     static var current: SalaryPlan? {
@@ -62,7 +69,9 @@ enum SalaryPlanStore {
 
     // MARK: Adding salary
 
-    /// Adds the salary for every month, from the month it was set up to now, whose salary day has arrived.
+    /// Adds the salary for every month from the month it was set up, through the next twelve months.
+    /// Future months are dated on their salary day, so they count in that month's totals but not in your account
+    /// balances until the day arrives.
     @MainActor
     static func postDue(in context: ModelContext, now: Date = .now) {
         guard let plan = current else { return }
@@ -72,22 +81,23 @@ enum SalaryPlanStore {
         let startInterval = defaults.double(forKey: startKey)
         var month = calendar.monthRange(containing: Date(timeIntervalSince1970: startInterval > 0 ? startInterval : now.timeIntervalSince1970)).lowerBound
         let currentMonth = calendar.monthRange(containing: now).lowerBound
+        let lastMonth = calendar.date(byAdding: .month, value: monthsAhead, to: currentMonth) ?? currentMonth
         var posted = Set(defaults.stringArray(forKey: postedKey) ?? [])
 
         var processed = 0
-        while month <= currentMonth, processed < maximumMonths {
+        while month <= lastMonth, processed < maximumMonths {
             let key = monthKey(month, calendar: calendar)
             if !posted.contains(key) {
                 let daysInMonth = calendar.range(of: .day, in: .month, for: month)?.count ?? 28
                 var components = calendar.dateComponents([.year, .month], from: month)
                 components.day = min(plan.day, daysInMonth)
                 components.hour = 12
-                if let salaryDate = calendar.date(from: components), salaryDate <= now {
+                if let salaryDate = calendar.date(from: components) {
                     if !hasSalary(inMonthOf: month, in: context, calendar: calendar) {
                         context.insert(Income(
                             amount: plan.amount,
                             source: .salary,
-                            note: "Monthly salary",
+                            note: autoNote,
                             bankName: plan.bankName,
                             date: salaryDate
                         ))
@@ -100,6 +110,30 @@ enum SalaryPlanStore {
             processed += 1
         }
 
+        defaults.set(Array(posted), forKey: postedKey)
+        try? context.save()
+    }
+
+    /// Removes the salary added ahead of time for months that haven't come yet, so a changed or stopped plan
+    /// doesn't leave the old amount behind. Salary you entered yourself, or already received, stays.
+    @MainActor
+    static func removeUpcoming(in context: ModelContext, now: Date = .now) {
+        let calendar = Calendar.current
+        let salaryRaw = IncomeSource.salary.rawValue
+        let note = autoNote
+        let descriptor = FetchDescriptor<Income>(
+            predicate: #Predicate { $0.sourceRaw == salaryRaw && $0.note == note && $0.date > now }
+        )
+        let upcoming = (try? context.fetch(descriptor)) ?? []
+        guard !upcoming.isEmpty else { return }
+
+        // Forget those months, so the new plan adds them again.
+        let defaults = UserDefaults.standard
+        var posted = Set(defaults.stringArray(forKey: postedKey) ?? [])
+        for income in upcoming {
+            posted.remove(monthKey(calendar.monthRange(containing: income.date).lowerBound, calendar: calendar))
+            context.delete(income)
+        }
         defaults.set(Array(posted), forKey: postedKey)
         try? context.save()
     }
