@@ -35,7 +35,7 @@ _None._
   6. **Also in this batch (your earlier changes, read only by the agents):** bank names shown in capitals, stricter card matching, cards getting accounts automatically, upcoming rent shown as fixed commitments in Budget, EMIs listed in Recurring Expenses.
 - Money impact: see the list above.
 - Status: Ready for you
-- Notes: Tested in the simulator: points 1, 2, 3, 4. Point 5 tested for UPI equal split only. Nothing committed yet. Ten earlier commits are not pushed.
+- Notes: Tested in the simulator: points 1, 2, 3, 4. Point 5 tested for UPI equal split only. Committed and pushed as `225c3bf` at the owner's request, before the phone check. Still needs the owner's phone verification. Any problem found goes back to dev as a fix.
 
 ## Done
 
