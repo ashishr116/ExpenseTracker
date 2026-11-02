@@ -11,6 +11,9 @@ Reminders to you the day before and on the day money you borrowed from a friend 
 ## Borrowing messages
 `BorrowingMessage` (in `BorrowingReminder.swift`) writes the text to a friend you borrowed from: a confirmation when you receive money, and a payment update with the amount just paid, every payment so far and the balance. The statement PDF for a friend shows money you borrowed from them as a short ledger: totals (borrowed, paid back, balance left) and a table of dates, details, amounts and the balance after each line, covering every borrowing and every part payment.
 
+## `AutoDebit.swift`
+Records EMIs and premiums paid by debit card or UPI as paid on their date, when the plan's "Auto-debited from Bank" switch is on (the default), so the bank balance drops when the money really leaves. It starts from the day the switch is first on, leaving earlier payments as recorded, and remembers how far it has checked, so a payment marked "Didn't Go Through" stays unpaid. Runs when the app opens, before the month-end savings sweep.
+
 ## `PaymentReminder.swift`
 Schedules local notifications for EMIs and premiums: the day before, on the due date, and again after it is overdue. Also schedules the repeating monthly reminder for a friend's card or personal-loan EMI.
 

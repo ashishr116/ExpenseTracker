@@ -105,6 +105,13 @@ struct EMIsView: View {
                 }
                 .tint(.green)
             }
+            // The bank's payment bounced: back to unpaid, and auto-debit leaves it that way.
+            if emi.isAutoDebited, let last = AutoDebit.lastAutoPaid(in: emi.installments) {
+                Button("Didn't Go Through", systemImage: "arrow.uturn.backward") {
+                    last.paidAt = nil
+                }
+                .tint(.orange)
+            }
         }
         .swipeActions {
             // Asks first: a full swipe would otherwise delete straight away.

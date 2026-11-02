@@ -138,6 +138,8 @@ struct EMIDTO: Codable {
     var endMonth: Date
     var annualInterestRate: Double?
     var includedInNetWorth: Bool
+    var autoDebit: Bool?
+    var autoDebitThrough: Date?
 }
 
 struct PolicyDTO: Codable {
@@ -157,6 +159,8 @@ struct PolicyDTO: Codable {
     var accountTypeRaw: String
     var bankName: String
     var cardLastFour: String
+    var autoDebit: Bool?
+    var autoDebitThrough: Date?
 }
 
 struct LoanDTO: Codable {
@@ -339,7 +343,8 @@ enum BackupManager {
                 name: $0.name, monthlyAmountPaise: Money.paise(from: $0.monthlyAmount),
                 accountTypeRaw: $0.accountTypeRaw, bankName: $0.bankName, cardLastFour: $0.cardLastFour,
                 billingDay: $0.billingDay, startMonth: $0.startMonth, endMonth: $0.endMonth,
-                annualInterestRate: $0.annualInterestRate, includedInNetWorth: $0.includedInNetWorth
+                annualInterestRate: $0.annualInterestRate, includedInNetWorth: $0.includedInNetWorth,
+                autoDebit: $0.autoDebit, autoDebitThrough: $0.autoDebitThrough
             )
         }
         file.policies = policies.map {
@@ -349,7 +354,8 @@ enum BackupManager {
                 premiumAmountPaise: Money.paise(from: $0.premiumAmount), frequencyRaw: $0.frequencyRaw,
                 startDate: $0.startDate, endDate: $0.endDate, nomineeOrMembers: $0.nomineeOrMembers,
                 note: $0.note, firstPremiumDate: $0.firstPremiumDate, addsToExpenses: $0.addsToExpenses,
-                accountTypeRaw: $0.accountTypeRaw, bankName: $0.bankName, cardLastFour: $0.cardLastFour
+                accountTypeRaw: $0.accountTypeRaw, bankName: $0.bankName, cardLastFour: $0.cardLastFour,
+                autoDebit: $0.autoDebit, autoDebitThrough: $0.autoDebitThrough
             )
         }
         file.loans = loans.map {
@@ -506,6 +512,8 @@ enum BackupManager {
             )
             emi.annualInterestRate = dto.annualInterestRate
             emi.includedInNetWorth = dto.includedInNetWorth
+            emi.autoDebit = dto.autoDebit ?? true
+            emi.autoDebitThrough = dto.autoDebitThrough
             context.insert(emi)
             return emi
         }
@@ -522,6 +530,8 @@ enum BackupManager {
                 accountType: AccountType(rawValue: dto.accountTypeRaw) ?? .upi,
                 bankName: dto.bankName, cardLastFour: dto.cardLastFour
             )
+            policy.autoDebit = dto.autoDebit ?? true
+            policy.autoDebitThrough = dto.autoDebitThrough
             context.insert(policy)
             return policy
         }

@@ -87,8 +87,9 @@ private struct RootView: View {
             CardSync.sync(in: modelContext)
             // Monthly payments are added before the month-end totals look at the finished months.
             RecurringExpensePoster.run(in: modelContext)
-            // SIPs too, so the month-end leftover counts the money invested.
+            // SIPs and bank auto-debits too, so the month-end leftover counts the money that left.
             SIPPoster.run(in: modelContext)
+            AutoDebit.run(in: modelContext)
             SavingsSweep.run(in: modelContext)
             GoalAllocator.run(in: modelContext)
             SalaryPlanStore.postDue(in: modelContext)
@@ -119,6 +120,7 @@ private struct RootView: View {
             if phase == .active {
                 RecurringExpensePoster.run(in: modelContext)
                 SIPPoster.run(in: modelContext)
+                AutoDebit.run(in: modelContext)
                 Task {
                     await BudgetAlerts.check(in: modelContext)
                     // Who owes what on a card may have changed since the reminders were set.

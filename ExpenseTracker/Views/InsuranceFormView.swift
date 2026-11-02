@@ -31,6 +31,7 @@ struct InsuranceFormView: View {
     /// A credit card saved for the first time by this policy, while its bill day is being asked.
     @State private var cardAskingBillDay: PaymentCard?
     @State private var isConfirmingDelete = false
+    @State private var autoDebit: Bool
     @State private var nomineeOrMembers: String
     @State private var note: String
     /// How many past premiums are already paid. `nil` until changed, then it follows the schedule.
@@ -52,6 +53,7 @@ struct InsuranceFormView: View {
         _firstPremiumDate = State(initialValue: policy?.firstPremiumDate ?? policy?.startDate ?? .now)
         _addsToExpenses = State(initialValue: policy?.addsToExpenses ?? true)
         _accountType = State(initialValue: policy?.accountType ?? .upi)
+        _autoDebit = State(initialValue: policy?.autoDebit ?? true)
         _bankName = State(initialValue: policy?.bankName ?? "")
         _cardLastFour = State(initialValue: policy?.cardLastFour ?? "")
         _nomineeOrMembers = State(initialValue: policy?.nomineeOrMembers ?? "")
@@ -146,6 +148,9 @@ struct InsuranceFormView: View {
                         }
                         // Your saved cards and banks, one tap away, as on the expense form.
                         PaymentSourceFields(accountType: accountType, bankName: $bankName, cardLastFour: $cardLastFour)
+                        if accountType == .debitCard || accountType == .upi {
+                            Toggle("Auto-debited from Bank", isOn: $autoDebit)
+                        }
                     }
                     if policy == nil, addsToExpenses, pastCount > 0 {
                         Stepper(
@@ -161,6 +166,9 @@ struct InsuranceFormView: View {
                         Text("\(premiumCount) premium\(premiumCount == 1 ? "" : "s") will be added to your expenses on each debit date until the policy ends.")
                         if policy == nil, pastCount > 0 {
                             Text("\(pastCount) of them \(pastCount == 1 ? "is" : "are") dated before today. The earliest ones you mark as paid are recorded as paid. Any you leave unpaid show as overdue until you record them.")
+                        }
+                        if autoDebit, accountType == .debitCard || accountType == .upi {
+                            Text("Auto-debited: each premium from today counts as paid on its date, without ticking it. If one doesn't go through, swipe right on the policy and choose Didn't Go Through.")
                         }
                     }
                 }
@@ -270,6 +278,12 @@ struct InsuranceFormView: View {
         }
         // Only a new policy gets past premiums recorded as paid; an edited one keeps its own history.
         target.regeneratePremiumExpenses(in: modelContext, markingFirstPaid: policy == nil ? alreadyPaid : 0)
+        // Turning auto-debit on (or a new plan) starts from today, so past payments keep what you recorded.
+        if autoDebit && !(target.isAutoDebited && target.autoDebitThrough != nil) {
+            target.autoDebitThrough = AutoDebit.startingPoint()
+        }
+        target.autoDebit = autoDebit
+        AutoDebit.run(in: modelContext)
         if let newCard {
             cardAskingBillDay = newCard
         } else {

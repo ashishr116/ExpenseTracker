@@ -29,6 +29,7 @@ struct EMIFormView: View {
     /// A credit card saved for the first time by this EMI, while its bill day is being asked.
     @State private var cardAskingBillDay: PaymentCard?
     @State private var isConfirmingDelete = false
+    @State private var autoDebit: Bool
 
     init(emi: EMI? = nil) {
         self.emi = emi
@@ -36,6 +37,7 @@ struct EMIFormView: View {
         _name = State(initialValue: emi?.name ?? "")
         _monthlyAmount = State(initialValue: emi?.monthlyAmount)
         _accountType = State(initialValue: emi?.accountType ?? .creditCard)
+        _autoDebit = State(initialValue: emi?.autoDebit ?? true)
         _bankName = State(initialValue: emi?.bankName ?? "")
         _cardLastFour = State(initialValue: emi?.cardLastFour ?? "")
         _billingDay = State(initialValue: emi?.billingDay ?? Calendar.current.component(.day, from: now))
@@ -92,6 +94,16 @@ struct EMIFormView: View {
                     }
                     // Your saved cards and banks, one tap away, as on the expense form.
                     PaymentSourceFields(accountType: accountType, bankName: $bankName, cardLastFour: $cardLastFour)
+                }
+
+                if accountType == .debitCard || accountType == .upi {
+                    Section {
+                        Toggle("Auto-debited from Bank", isOn: $autoDebit)
+                    } footer: {
+                        Text(autoDebit
+                             ? "Each instalment counts as paid on its date, and your bank balance goes down then, without ticking it. If one doesn't go through, swipe right on the EMI and choose Didn't Go Through."
+                             : "Each instalment counts only once you mark it paid.")
+                    }
                 }
 
                 Section {
@@ -214,6 +226,12 @@ struct EMIFormView: View {
         }
         // Only a new EMI gets past instalments recorded as paid; an edited one keeps its own history.
         target.regenerateInstallments(in: modelContext, markingFirstPaid: emi == nil ? alreadyPaid : 0)
+        // Turning auto-debit on (or a new plan) starts from today, so past payments keep what you recorded.
+        if autoDebit && !(target.isAutoDebited && target.autoDebitThrough != nil) {
+            target.autoDebitThrough = AutoDebit.startingPoint()
+        }
+        target.autoDebit = autoDebit
+        AutoDebit.run(in: modelContext)
         if let newCard {
             cardAskingBillDay = newCard
         } else {

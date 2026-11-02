@@ -119,6 +119,16 @@ final class InsurancePolicy {
     @Relationship(deleteRule: .cascade, inverse: \Expense.insurancePolicy)
     var premiumExpenses: [Expense] = []
 
+    /// Paid by the bank on its own from your account (a debit card or UPI mandate). Each premium then counts
+    /// as paid on its date without being ticked.
+    var autoDebit: Bool = true
+    /// Premiums dated up to this are left as they are, so one marked "didn't go through" stays unpaid, and
+    /// past months aren't changed when auto-debit is turned on. `nil` until first checked.
+    var autoDebitThrough: Date?
+
+    /// Auto-debit applies only to a policy paid from a bank account.
+    var isAutoDebited: Bool { autoDebit && (accountType == .debitCard || accountType == .upi) }
+
     init(
         type: InsuranceType,
         insurerName: String,
