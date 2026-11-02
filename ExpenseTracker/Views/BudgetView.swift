@@ -80,6 +80,7 @@ private struct BudgetSummaryList: View {
     /// Money borrowed from friends this month, and payments back to them.
     @Query private var borrowed: [Borrowing]
     @Query private var borrowPayments: [BorrowingPayment]
+    @Query private var holdings: [Holding]
 
     private var cashRepayments: [LoanRepayment] { repayments.filter(\.isCashInflow) }
 
@@ -268,12 +269,16 @@ private struct BudgetSummaryList: View {
         // A plan should hold back money for EMIs and premiums that are still to be paid.
         let borrowedIn = borrowed.reduce(Decimal(0)) { $0 + $1.amount }
         let paidBack = borrowPayments.totalAmount
+        // Money put into investments leaves your account (less any taken out), and SIPs still due will.
+        let invested = transfers.investedNet
+        let sips = SIPPoster.outstanding(in: month, holdings: holdings)
         let balance = income - spent - pending - cardDue - loanedOut + cashRepaid + borrowedIn - paidBack
+            - invested - sips
         // When a card was used, the main figures count what left your cash. Credit card purchases wait for the bill.
         let cash = cashView
         let usesCash = cash.hasCardActivity
         let cashSpentOut = cash.cashSpent + cash.billsPaid
-        let remaining = usesCash ? cash.cashLeft - pending - cardDue : balance
+        let remaining = usesCash ? cash.cashLeft - pending - cardDue - sips : balance
 
         return Section {
             if income > 0 {
@@ -332,6 +337,28 @@ private struct BudgetSummaryList: View {
 
             if cardDue > 0 {
                 cardDuesRow(cardDues, total: cardDue)
+            }
+
+            if invested > 0 {
+                LabeledContent("Invested") {
+                    Text(invested, format: .rupees)
+                        .foregroundStyle(.orange)
+                        .fontWeight(.semibold)
+                }
+            } else if invested < 0 {
+                LabeledContent("Taken Out of Investments") {
+                    Text(-invested, format: .rupees)
+                        .foregroundStyle(.green)
+                        .fontWeight(.semibold)
+                }
+            }
+
+            if sips > 0 {
+                LabeledContent("Scheduled SIPs") {
+                    Text(sips, format: .rupees)
+                        .foregroundStyle(.orange)
+                        .fontWeight(.semibold)
+                }
             }
 
             if loanedOut > 0 {

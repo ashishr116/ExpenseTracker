@@ -139,8 +139,13 @@ enum SavingsSweep {
             predicate: #Predicate { $0.date >= start && $0.date < end }
         ))) ?? []).totalAmount
 
+        // Money put into investments has already left; money taken out came back.
+        let invested = ((try? context.fetch(FetchDescriptor<Transfer>(
+            predicate: #Predicate { $0.date >= start && $0.date < end }
+        ))) ?? []).investedNet
+
         return incomes.totalAmount - expenses.totalAmount - lent.filter { $0.method == .cash }.totalAmount
-            + cashRepaid + borrowed - paidBack
+            + cashRepaid + borrowed - paidBack - invested
     }
 
     // MARK: Sweeping

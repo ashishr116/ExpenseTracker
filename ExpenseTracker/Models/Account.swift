@@ -120,6 +120,8 @@ final class Transfer {
     var note: String = ""
     var fromAccount: Account?
     var toAccount: Account?
+    /// The investment this money went into or came out of (`Holding.uid`). Empty for every other transfer.
+    var holdingUID: String = ""
 
     init(amount: Decimal, date: Date = .now, note: String = "") {
         self.amountPaise = Money.paise(from: amount)
@@ -134,4 +136,20 @@ final class Transfer {
 
     /// Only one side is an account of yours.
     var isAdjustment: Bool { fromAccount == nil || toAccount == nil }
+
+    /// Money put into an investment or taken out of one.
+    var isInvestment: Bool { !holdingUID.isEmpty || note.hasPrefix("Invested in ") }
+
+    /// For an investment: the amount put in, or minus the amount taken out. 0 for any other transfer.
+    var investedEffect: Decimal {
+        guard isInvestment else { return 0 }
+        if toAccount == nil { return amount }
+        if fromAccount == nil { return -amount }
+        return 0
+    }
+}
+
+extension Sequence where Element == Transfer {
+    /// Money put into investments, less money taken out of them.
+    var investedNet: Decimal { reduce(0) { $0 + $1.investedEffect } }
 }

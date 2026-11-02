@@ -199,7 +199,7 @@ struct AccountLedger {
                         id: "transfer-out-\(transfer.persistentModelID)",
                         date: transfer.date,
                         title: adjustment
-                            ? (transfer.note.hasPrefix("Invested in ") ? "Invested" : "Adjustment")
+                            ? (transfer.isInvestment ? "Invested" : "Adjustment")
                             : (transfer.toAccount?.kind.isLiability == true
                                 ? "Paid \(transfer.toAccount?.displayName ?? "card") bill"
                                 : "Transfer to \(transfer.toAccount?.displayName ?? "account")"),
@@ -216,7 +216,7 @@ struct AccountLedger {
                         id: "transfer-in-\(transfer.persistentModelID)",
                         date: transfer.date,
                         title: adjustment
-                            ? "Adjustment"
+                            ? (transfer.isInvestment ? "Withdrawn from investment" : "Adjustment")
                             : (to.kind.isLiability
                                 ? "Bill payment from \(transfer.fromAccount?.displayName ?? "account")"
                                 : "Transfer from \(transfer.fromAccount?.displayName ?? "account")"),

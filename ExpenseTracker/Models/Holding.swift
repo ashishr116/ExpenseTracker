@@ -142,6 +142,19 @@ final class Holding {
     var note: String
     /// When the values were last edited.
     var updatedAt: Date
+    /// Links money moved in and out of this investment (`Transfer.holdingUID`). Set on first use for older ones.
+    var uid: String = ""
+
+    // Monthly SIP: an amount moved from one of your accounts into this investment on the same day each month.
+    var sipAmountPaise: Int64 = 0
+    /// Day of the month, 1 to 28 so it exists in every month.
+    var sipDay: Int = 1
+    /// The bank or cash account the SIP is paid from.
+    var sipAccountUID: String = ""
+    /// The SIP was set up on this day. Earlier months are never added.
+    var sipStartDate: Date?
+    /// The last SIP added, so none is added twice.
+    var sipLastPosted: Date?
 
     init(
         name: String,
@@ -165,6 +178,7 @@ final class Holding {
         self.maturityDate = maturityDate
         self.note = note
         self.updatedAt = updatedAt
+        self.uid = UUID().uuidString
     }
 
     var kind: HoldingKind {
@@ -208,6 +222,133 @@ final class Holding {
     /// Gain as a fraction of the invested amount (0.12 = 12%).
     var gainFraction: Decimal? {
         gain.map { $0 / investedAmount }
+    }
+}
+
+// MARK: - Money in and out
+
+extension Holding {
+    /// Debts are paid off elsewhere; only investments and savings take money in and out.
+    var movesMoney: Bool { !kind.isDebt }
+
+    /// The id used to link this investment's money moves, created when first needed.
+    @discardableResult
+    func ensureUID() -> String {
+        if uid.isEmpty { uid = UUID().uuidString }
+        return uid
+    }
+
+    /// Puts more money in: the value and the amount invested go up, and the account it came from goes down.
+    /// Without an account, only the investment changes.
+    func addMoney(_ amount: Decimal, from account: Account?, on date: Date = .now, in context: ModelContext) {
+        guard amount > 0 else { return }
+        if kind.tracksInvested { investedAmount += amount }
+        currentValue += amount
+        updatedAt = .now
+        guard let account else { return }
+        let transfer = Transfer(amount: amount, date: date, note: "Invested in \(name)")
+        transfer.holdingUID = ensureUID()
+        context.insert(transfer)
+        transfer.fromAccount = account
+    }
+
+    /// Takes money out: the value goes down, and the account it went to goes up. The amount invested goes down
+    /// in the same proportion, so the gain on what is left stays the same.
+    func withdraw(_ amount: Decimal, to account: Account?, on date: Date = .now, in context: ModelContext) {
+        let taken = min(amount, currentValue)
+        guard taken > 0 else { return }
+        if kind.tracksInvested, currentValue > 0 {
+            investedAmount = max(0, investedAmount - investedAmount * taken / currentValue)
+        }
+        currentValue -= taken
+        updatedAt = .now
+        guard let account else { return }
+        let transfer = Transfer(amount: taken, date: date, note: "Withdrawn from \(name)")
+        transfer.holdingUID = ensureUID()
+        context.insert(transfer)
+        transfer.toAccount = account
+    }
+
+    // MARK: SIP
+
+    var sipAmount: Decimal? {
+        get { sipAmountPaise > 0 ? Money.amount(fromPaise: sipAmountPaise) : nil }
+        set { sipAmountPaise = newValue.map { Money.paise(from: $0) } ?? 0 }
+    }
+
+    var hasSIP: Bool { movesMoney && sipAmountPaise > 0 && !sipAccountUID.isEmpty }
+
+    /// The SIP day in the month containing `month`, at 9:00.
+    func sipDate(inMonth month: Date) -> Date? {
+        let calendar = Calendar.current
+        var components = calendar.dateComponents([.year, .month], from: month)
+        components.day = min(max(sipDay, 1), 28)
+        components.hour = 9
+        return calendar.date(from: components)
+    }
+
+    /// Whether this month's SIP is still to be added: due in that month, on or after the SIP started,
+    /// and not added yet.
+    func isSIPOutstanding(inMonth month: Date) -> Bool {
+        guard hasSIP, let date = sipDate(inMonth: month), let start = sipStartDate else { return false }
+        if date < Calendar.current.startOfDay(for: start) { return false }
+        if let last = sipLastPosted, date <= last { return false }
+        return true
+    }
+
+    /// SIPs due by `now` that haven't been added yet, oldest first.
+    func dueSIPDates(now: Date = .now) -> [Date] {
+        guard hasSIP, let start = sipStartDate else { return [] }
+        let calendar = Calendar.current
+        var month = calendar.monthRange(containing: start).lowerBound
+        var dates: [Date] = []
+        while month <= now, dates.count < 600 {
+            if isSIPOutstanding(inMonth: month), let date = sipDate(inMonth: month), date <= now {
+                dates.append(date)
+            }
+            guard let next = calendar.date(byAdding: .month, value: 1, to: month) else { break }
+            month = next
+        }
+        return dates
+    }
+
+    /// The next SIP day from now, for showing on the form.
+    func nextSIPDate(now: Date = .now) -> Date? {
+        guard hasSIP else { return nil }
+        let calendar = Calendar.current
+        var month = calendar.monthRange(containing: now).lowerBound
+        for _ in 0..<13 {
+            if isSIPOutstanding(inMonth: month), let date = sipDate(inMonth: month), date > now { return date }
+            guard let next = calendar.date(byAdding: .month, value: 1, to: month) else { break }
+            month = next
+        }
+        return nil
+    }
+}
+
+/// Adds each investment's monthly SIP once its day comes, taking it from the chosen account.
+enum SIPPoster {
+    @MainActor
+    static func run(in context: ModelContext, now: Date = .now) {
+        let holdings = (try? context.fetch(FetchDescriptor<Holding>())) ?? []
+        let accounts = (try? context.fetch(FetchDescriptor<Account>())) ?? []
+        var changed = false
+        for holding in holdings where holding.hasSIP {
+            // An account that was removed or closed stops the SIP from being added, rather than guessing another.
+            guard let amount = holding.sipAmount,
+                  let account = accounts.first(where: { $0.uid == holding.sipAccountUID && !$0.isArchived }) else { continue }
+            for date in holding.dueSIPDates(now: now) {
+                holding.addMoney(amount, from: account, on: date, in: context)
+                holding.sipLastPosted = date
+                changed = true
+            }
+        }
+        if changed { try? context.save() }
+    }
+
+    /// SIPs still to be paid in the month containing `month`, for the forecast of coming months.
+    static func outstanding(in month: Date, holdings: [Holding]) -> Decimal {
+        holdings.filter { $0.isSIPOutstanding(inMonth: month) }.reduce(Decimal(0)) { $0 + ($1.sipAmount ?? 0) }
     }
 }
 

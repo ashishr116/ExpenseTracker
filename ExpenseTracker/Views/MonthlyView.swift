@@ -115,6 +115,10 @@ private struct MonthlyExpenseList: View {
     /// The month shown, to find the rent and subscriptions still due in it.
     private let month: Date
     @Query private var recurringPlans: [RecurringExpense]
+    @Query private var holdings: [Holding]
+
+    /// SIPs due in this month and not yet added.
+    private var scheduledSIPs: Decimal { SIPPoster.outstanding(in: month, holdings: holdings) }
 
     /// Rent, subscriptions and other monthly payments due in this month but not yet added as expenses.
     private var scheduledFixed: Decimal {
@@ -198,7 +202,8 @@ private struct MonthlyExpenseList: View {
     var body: some View {
         Group {
             if expenses.isEmpty && incomes.isEmpty && loansLent.isEmpty && cashRepayments.isEmpty && cardPayments.isEmpty
-                && borrowed.isEmpty && borrowPayments.isEmpty && scheduledFixed == 0 {
+                && borrowed.isEmpty && borrowPayments.isEmpty && scheduledFixed == 0 && scheduledSIPs == 0
+                && transfers.investedNet == 0 {
                 ContentUnavailableView(
                     "Nothing This Month",
                     systemImage: "calendar",
@@ -337,9 +342,12 @@ private struct MonthlyExpenseList: View {
         let repaid = cashRepayments.totalAmount
         let borrowedIn = borrowed.reduce(Decimal(0)) { $0 + $1.amount }
         let paidBack = borrowPayments.totalAmount
+        // Money put into investments leaves your account; money taken out comes back.
+        let invested = transfers.investedNet
+        let sips = scheduledSIPs
         // Money lent leaves your account this month; repayments come back in. Borrowed money comes in, and
         // paying it back goes out.
-        let balance = income - spent - lent + repaid + borrowedIn - paidBack
+        let balance = income - spent - lent + repaid + borrowedIn - paidBack - invested
         // Credit card spending isn't taken from cash until the bill is paid. Shown only when a card was used.
         let cash = MonthCashView(
             // A friend's card share paid to you is in hand, and goes out again with the card bill.
@@ -396,6 +404,26 @@ private struct MonthlyExpenseList: View {
                         .fontWeight(.semibold)
                 }
             }
+            if invested > 0 {
+                LabeledContent("Invested") {
+                    Text(invested, format: .rupees)
+                        .foregroundStyle(.orange)
+                        .fontWeight(.semibold)
+                }
+            } else if invested < 0 {
+                LabeledContent("Taken Out of Investments") {
+                    Text(-invested, format: .rupees)
+                        .foregroundStyle(.green)
+                        .fontWeight(.semibold)
+                }
+            }
+            if sips > 0 {
+                LabeledContent("Scheduled SIPs") {
+                    Text(sips, format: .rupees)
+                        .foregroundStyle(.orange)
+                        .fontWeight(.semibold)
+                }
+            }
             if lent > 0 {
                 LabeledContent("Lent to Friends") {
                     Text(lent, format: .rupees)
@@ -426,12 +454,13 @@ private struct MonthlyExpenseList: View {
             }
             // With a card in use, Balance is the cash left. Otherwise it is income less what was spent.
             balanceRow(shownBalance)
-            if pending + scheduledFixed + cardDue > 0 {
-                // What is left once the EMIs, premiums, monthly payments and card bills still due are paid.
+            if pending + scheduledFixed + cardDue + sips > 0 {
+                // What is left once the EMIs, premiums, monthly payments, card bills and SIPs still due are paid.
+                let left = shownBalance - pending - scheduledFixed - cardDue - sips
                 LabeledContent("Left After Pending") {
-                    Text(shownBalance - pending - scheduledFixed - cardDue, format: .rupees)
+                    Text(left, format: .rupees)
                         .fontWeight(.semibold)
-                        .foregroundStyle(shownBalance - pending - scheduledFixed - cardDue >= 0 ? .green : .red)
+                        .foregroundStyle(left >= 0 ? .green : .red)
                 }
             }
             LabeledContent(

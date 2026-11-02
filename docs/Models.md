@@ -44,7 +44,7 @@ SwiftData records saved on the device. Money is stored as whole paise and read b
 - `GoalAllocator`: at launch, goes through each finished month and sets aside every goal's monthly amount from that month's leftover, oldest goal first. A month with less left over sets aside less, and a month is never counted twice. The money is only marked for the goal. No balance or net worth changes.
 
 ## `Holding.swift`
-`Holding` and `HoldingKind`: an investment, savings balance or debt entered by hand for net worth.
+`Holding` and `HoldingKind`: an investment, savings balance or debt entered by hand for net worth. `addMoney` and `withdraw` move money between an investment and an account, linked by `Transfer.holdingUID`. An optional monthly SIP is added on its day by `SIPPoster`, which runs when the app opens, before the month-end savings sweep.
 
 ## `PaymentCard.swift`
 `PaymentCard`: a saved card with optional full number, expiry and CVV, shown only after Face ID. The full details are stored in the Keychain (see `CardVault`), and the database holds only the last four digits and an id that points to them. Cards saved by earlier versions are moved to the Keychain on the next launch.

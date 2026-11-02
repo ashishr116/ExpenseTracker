@@ -26,6 +26,8 @@ struct PortfolioView: View {
 
     @State private var isAddingHolding = false
     @State private var editingHolding: Holding?
+    /// The investment and direction for the Add Money or Withdraw sheet.
+    @State private var movingMoney: (holding: Holding, mode: HoldingMoneySheet.Mode)?
 
     // MARK: Totals
 
@@ -125,6 +127,11 @@ struct PortfolioView: View {
         .sheet(isPresented: $isAddingHolding) {
             HoldingFormView()
         }
+        .sheet(isPresented: Binding(get: { movingMoney != nil }, set: { if !$0 { movingMoney = nil } })) {
+            if let movingMoney {
+                HoldingMoneySheet(holding: movingMoney.holding, mode: movingMoney.mode)
+            }
+        }
         .sheet(item: $editingHolding) { holding in
             HoldingFormView(holding: holding)
         }
@@ -202,6 +209,20 @@ struct PortfolioView: View {
                     HoldingRow(holding: holding)
                 }
                 .tint(.primary)
+                .swipeActions(edge: .leading) {
+                    if holding.movesMoney {
+                        Button("Add Money", systemImage: "plus.circle") {
+                            movingMoney = (holding, .add)
+                        }
+                        .tint(.green)
+                        if holding.currentValue > 0 {
+                            Button("Withdraw", systemImage: "minus.circle") {
+                                movingMoney = (holding, .withdraw)
+                            }
+                            .tint(.blue)
+                        }
+                    }
+                }
                 .swipeActions {
                     Button("Delete", systemImage: "trash", role: .destructive) {
                         modelContext.delete(holding)

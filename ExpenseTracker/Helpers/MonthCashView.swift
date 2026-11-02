@@ -12,7 +12,7 @@ import Foundation
 /// kept apart from cash. Paying the bill is what lowers cash.
 ///
 /// - Cash left: income, minus spending in cash, UPI and on a debit card, minus card bills paid this month, minus
-///   cash lent to friends, plus cash loans repaid.
+///   cash lent to friends, plus cash loans repaid, less money put into investments (plus any taken out).
 /// - The bills paid this month may be for purchases made in earlier months. That is the real cash that left.
 struct MonthCashView {
     /// One credit card's spending for the month.
@@ -29,6 +29,8 @@ struct MonthCashView {
     let cashSpent: Decimal
     /// Card bills paid from your accounts this month.
     let billsPaid: Decimal
+    /// Money put into investments this month, less money taken out of them.
+    let invested: Decimal
     /// What you actually have left from this month's income.
     let cashLeft: Decimal
     /// Credit card spending, card by card, biggest first.
@@ -39,7 +41,8 @@ struct MonthCashView {
 
     /// - Parameters:
     ///   - expenses: The month's expenses. EMIs and premiums not yet paid are left out here, except those on a credit card whose billing date has come.
-    ///   - cardPayments: The month's transfers. Only card bill payments are counted.
+    ///   - cardPayments: The month's transfers. Card bill payments and money put into or taken out of
+    ///     investments are counted.
     init(
         income: Decimal,
         expenses: [Expense],
@@ -60,7 +63,8 @@ struct MonthCashView {
         cardSpent = onCards.totalAmount
         cashSpent = paid.filter { $0.accountType != .creditCard }.totalAmount
         billsPaid = cardPayments.filter(\.isCardBillPayment).reduce(Decimal(0)) { $0 + $1.amount }
-        cashLeft = income - cashSpent - billsPaid - cashLent + cashRepaid + borrowed - paidBack
+        invested = cardPayments.investedNet
+        cashLeft = income - cashSpent - billsPaid - cashLent + cashRepaid + borrowed - paidBack - invested
 
         cards = Dictionary(grouping: onCards) { "\($0.bankName)|\($0.cardLastFour)" }
             .map { key, items in

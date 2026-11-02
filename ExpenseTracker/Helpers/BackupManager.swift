@@ -216,6 +216,12 @@ struct HoldingDTO: Codable {
     var maturityDate: Date?
     var note: String
     var updatedAt: Date
+    var uid: String?
+    var sipAmountPaise: Int64?
+    var sipDay: Int?
+    var sipAccountUID: String?
+    var sipStartDate: Date?
+    var sipLastPosted: Date?
 }
 
 struct CardDTO: Codable {
@@ -239,6 +245,7 @@ struct TransferDTO: Codable {
     /// Positions in `accounts`.
     var from: Int?
     var to: Int?
+    var holdingUID: String?
 }
 
 struct SavingsDTO: Codable {
@@ -380,7 +387,8 @@ enum BackupManager {
                 investedAmountPaise: Money.paise(from: $0.investedAmount),
                 currentValuePaise: Money.paise(from: $0.currentValue), quantity: $0.quantity,
                 interestRate: $0.interestRate, maturityDate: $0.maturityDate, note: $0.note,
-                updatedAt: $0.updatedAt
+                updatedAt: $0.updatedAt, uid: $0.uid, sipAmountPaise: $0.sipAmountPaise, sipDay: $0.sipDay,
+                sipAccountUID: $0.sipAccountUID, sipStartDate: $0.sipStartDate, sipLastPosted: $0.sipLastPosted
             )
         }
         // Only the last four digits, never the full number, expiry or CVV.
@@ -395,7 +403,8 @@ enum BackupManager {
             TransferDTO(
                 amountPaise: transfer.amountPaise, date: transfer.date, note: transfer.note,
                 from: transfer.fromAccount.flatMap { accountIndex[$0.persistentModelID] },
-                to: transfer.toAccount.flatMap { accountIndex[$0.persistentModelID] }
+                to: transfer.toAccount.flatMap { accountIndex[$0.persistentModelID] },
+                holdingUID: transfer.holdingUID
             )
         }
         file.monthlySavings = try all(MonthlySavings.self).map { record in
@@ -567,6 +576,12 @@ enum BackupManager {
                 interestRate: dto.interestRate, maturityDate: dto.maturityDate, note: dto.note,
                 updatedAt: dto.updatedAt
             )
+            if let uid = dto.uid, !uid.isEmpty { holding.uid = uid }
+            holding.sipAmountPaise = dto.sipAmountPaise ?? 0
+            holding.sipDay = dto.sipDay ?? 1
+            holding.sipAccountUID = dto.sipAccountUID ?? ""
+            holding.sipStartDate = dto.sipStartDate
+            holding.sipLastPosted = dto.sipLastPosted
             context.insert(holding)
         }
 
@@ -584,6 +599,7 @@ enum BackupManager {
 
         let transfers = file.transfers.map { dto -> Transfer in
             let transfer = Transfer(amount: Money.amount(fromPaise: dto.amountPaise), date: dto.date, note: dto.note)
+            transfer.holdingUID = dto.holdingUID ?? ""
             context.insert(transfer)
             if let index = dto.from, accounts.indices.contains(index) { transfer.fromAccount = accounts[index] }
             if let index = dto.to, accounts.indices.contains(index) { transfer.toAccount = accounts[index] }
