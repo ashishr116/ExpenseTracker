@@ -176,6 +176,28 @@ final class EMI {
     ///
     /// - Parameter markingFirstPaid: How many of the newly created instalments, earliest first, to record as
     ///   already paid on their billing date. Use it when adding an EMI that started in the past.
+    /// Instalments that stay when the plan is deleted: those marked paid, and those already billed to a credit
+    /// card, which the card owes whether marked paid or not. They are money that has really moved.
+    func installmentsKeptOnDelete(now: Date = .now) -> [Expense] {
+        installments.filter { $0.paidAt != nil || ($0.isBilledToCard && $0.date <= now) }
+    }
+
+    /// Deletes the plan and its future instalments. Instalments already paid or billed stay as ordinary
+    /// past expenses, so account balances and past months don't change.
+    func delete(from context: ModelContext, now: Date = .now) {
+        let kept = installmentsKeptOnDelete(now: now)
+        for expense in installments where !kept.contains(where: { $0 === expense }) {
+            context.delete(expense)
+        }
+        for expense in kept {
+            // Counted on its own date from now on, as a normal expense.
+            if expense.paidAt == nil { expense.paidAt = expense.date }
+            expense.emi = nil
+        }
+        installments.removeAll()
+        context.delete(self)
+    }
+
     func regenerateInstallments(in context: ModelContext, markingFirstPaid alreadyPaid: Int = 0) {
         let calendar = Calendar.current
         let paid = paidInstallments

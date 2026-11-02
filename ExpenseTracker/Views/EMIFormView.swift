@@ -28,6 +28,7 @@ struct EMIFormView: View {
     @State private var paidOverride: Int?
     /// A credit card saved for the first time by this EMI, while its bill day is being asked.
     @State private var cardAskingBillDay: PaymentCard?
+    @State private var isConfirmingDelete = false
 
     init(emi: EMI? = nil) {
         self.emi = emi
@@ -135,14 +136,25 @@ struct EMIFormView: View {
                 if let emi {
                     Section {
                         Button("Delete EMI", role: .destructive) {
-                            for expense in emi.installments {
-                                modelContext.delete(expense)
+                            isConfirmingDelete = true
+                        }
+                        .confirmationDialog(
+                            "Delete \(emi.name)?", isPresented: $isConfirmingDelete, titleVisibility: .visible,
+                            presenting: emi
+                        ) { emi in
+                            Button("Delete EMI", role: .destructive) {
+                                emi.delete(from: modelContext)
+                                dismiss()
                             }
-                            modelContext.delete(emi)
-                            dismiss()
+                        } message: { emi in
+                            let kept = emi.installmentsKeptOnDelete()
+                            let future = emi.installments.count - kept.count
+                            Text(kept.isEmpty
+                                 ? "Removes its \(future) instalment\(future == 1 ? "" : "s") still to come."
+                                 : "Keeps the \(kept.count) instalment\(kept.count == 1 ? "" : "s") already paid (\(kept.totalAmount.formatted(.rupees))) as past expenses, so your balances and past months don't change. Removes the \(future) still to come.")
                         }
                     } footer: {
-                        Text("Deleting removes all of this EMI's monthly expenses, past and future.")
+                        Text("Instalments already paid stay as past expenses. Only the ones still to come are removed.")
                     }
                 }
             }

@@ -14,6 +14,7 @@ struct InsuranceView: View {
 
     @State private var isAddingPolicy = false
     @State private var editingPolicy: InsurancePolicy?
+    @State private var deletingPolicy: InsurancePolicy?
     @State private var reminders = NotificationStatus()
 
     private var activePolicies: [InsurancePolicy] { policies.filter { !$0.isExpired } }
@@ -69,6 +70,23 @@ struct InsuranceView: View {
         .sheet(item: $editingPolicy) { policy in
             InsuranceFormView(policy: policy)
         }
+        .confirmationDialog(
+            "Delete this policy?",
+            isPresented: Binding(get: { deletingPolicy != nil }, set: { if !$0 { deletingPolicy = nil } }),
+            titleVisibility: .visible,
+            presenting: deletingPolicy
+        ) { policy in
+            Button("Delete Policy", role: .destructive) {
+                policy.delete(from: modelContext)
+                deletingPolicy = nil
+            }
+        } message: { policy in
+            let kept = policy.premiumsKeptOnDelete()
+            let future = policy.premiumExpenses.count - kept.count
+            Text(kept.isEmpty
+                 ? "Removes its \(future) premium\(future == 1 ? "" : "s") still to come."
+                 : "Keeps the \(kept.count) premium\(kept.count == 1 ? "" : "s") already paid (\(kept.totalAmount.formatted(.rupees))) as past expenses, so your balances and past months don't change. Removes the \(future) still to come.")
+        }
     }
 
     private var summarySection: some View {
@@ -111,9 +129,11 @@ struct InsuranceView: View {
             }
         }
         .swipeActions {
-            Button("Delete", systemImage: "trash", role: .destructive) {
-                policy.delete(from: modelContext)
+            // Asks first: a full swipe would otherwise delete straight away.
+            Button("Delete", systemImage: "trash") {
+                deletingPolicy = policy
             }
+            .tint(.red)
         }
     }
 }

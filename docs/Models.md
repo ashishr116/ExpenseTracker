@@ -16,7 +16,7 @@ SwiftData records saved on the device. Money is stored as whole paise and read b
 - `Transfer`: money moving between two accounts, a card bill payment, or a one-sided adjustment made when matching a real balance. Not income or spending.
 
 ## `EMI.swift`
-`EMI`: an instalment plan. Owns one expense per month. Tracks paid, pending, due-today and overdue instalments, and the principal still outstanding. Regenerating after an edit keeps instalments already paid.
+`EMI`: an instalment plan. Owns one expense per month. Tracks paid, pending, due-today and overdue instalments, and the principal still outstanding. Regenerating after an edit keeps instalments already paid. Deleting the plan keeps paid instalments, and those already billed to a credit card, as ordinary past expenses.
 
 ## `InsurancePolicy.swift`
 `InsurancePolicy`: a health or term plan. Works like an EMI: one expense per premium, paid or pending, with due and overdue tracking.

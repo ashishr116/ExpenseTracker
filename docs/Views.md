@@ -24,7 +24,7 @@
 ## Lists and detail screens
 - **`LoansView.swift`**: loans grouped by friend, outstanding and repaid, with swipe actions and the reminder flow. Each friend has a green + that opens a new loan with their name and number already filled in.
 - **`BorrowedView.swift`**: money borrowed from friends, laid out like Loans: debts grouped by friend in rows that expand, a green + to borrow from the same friend again, a blue message button (Message, WhatsApp or PDF Statement), swipe to mark repaid or record a part payment, and a PDF summary in the More menu. Also the add and edit form, one debt's detail with its payments, and the sheet for paying part of it back. Saving a borrowing or a payment can send your friend a message or WhatsApp. A payment message lists the amount just paid, every payment so far and what is left. The detail menu also sends a PDF statement with every part payment.
-- **`EMIsView.swift`**: EMI plans with progress and what is left to pay.
+- **`EMIsView.swift`**: EMI plans with progress and what is left to pay. Deleting a plan asks first, keeps the instalments already paid (or already billed to a card) as past expenses, and removes only the ones still to come. The insurance screens delete policies the same way.
 - **`InsuranceView.swift`**: insurance plans with premiums and upcoming dues.
 - **`PortfolioView.swift`**: net worth: investments, savings, debts, accounts, money friends owe you, and EMIs still to pay.
 - **`AccountsView.swift`**: all accounts with balances and totals. The summary also shows what friends owe you in cash loans and what you owe friends, each opening its list. These aren't part of Net. Also the line row used in account histories and the screen for entries not linked to any account.

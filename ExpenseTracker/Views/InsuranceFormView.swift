@@ -30,6 +30,7 @@ struct InsuranceFormView: View {
     @State private var cardLastFour: String
     /// A credit card saved for the first time by this policy, while its bill day is being asked.
     @State private var cardAskingBillDay: PaymentCard?
+    @State private var isConfirmingDelete = false
     @State private var nomineeOrMembers: String
     @State private var note: String
     /// How many past premiums are already paid. `nil` until changed, then it follows the schedule.
@@ -178,11 +179,25 @@ struct InsuranceFormView: View {
                 if let policy {
                     Section {
                         Button("Delete Policy", role: .destructive) {
-                            policy.delete(from: modelContext)
-                            dismiss()
+                            isConfirmingDelete = true
+                        }
+                        .confirmationDialog(
+                            "Delete this policy?", isPresented: $isConfirmingDelete, titleVisibility: .visible,
+                            presenting: policy
+                        ) { policy in
+                            Button("Delete Policy", role: .destructive) {
+                                policy.delete(from: modelContext)
+                                dismiss()
+                            }
+                        } message: { policy in
+                            let kept = policy.premiumsKeptOnDelete()
+                            let future = policy.premiumExpenses.count - kept.count
+                            Text(kept.isEmpty
+                                 ? "Removes its \(future) premium\(future == 1 ? "" : "s") still to come."
+                                 : "Keeps the \(kept.count) premium\(kept.count == 1 ? "" : "s") already paid (\(kept.totalAmount.formatted(.rupees))) as past expenses, so your balances and past months don't change. Removes the \(future) still to come.")
                         }
                     } footer: {
-                        Text("Deleting also removes this policy's premium expenses.")
+                        Text("Premiums already paid stay as past expenses. Only the ones still to come are removed.")
                     }
                 }
             }

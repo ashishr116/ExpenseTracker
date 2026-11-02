@@ -324,10 +324,24 @@ final class InsurancePolicy {
     }
 
     /// Deletes the policy along with all of its premium expenses.
-    func delete(from context: ModelContext) {
-        for expense in premiumExpenses {
+    /// Premiums that stay when the policy is deleted: those marked paid, and those already billed to a credit
+    /// card, which the card owes whether marked paid or not. They are money that has really moved.
+    func premiumsKeptOnDelete(now: Date = .now) -> [Expense] {
+        premiumExpenses.filter { $0.paidAt != nil || ($0.isBilledToCard && $0.date <= now) }
+    }
+
+    /// Deletes the policy and its future premiums. Premiums already paid or billed stay as ordinary past
+    /// expenses, so account balances and past months don't change.
+    func delete(from context: ModelContext, now: Date = .now) {
+        let kept = premiumsKeptOnDelete(now: now)
+        for expense in premiumExpenses where !kept.contains(where: { $0 === expense }) {
             context.delete(expense)
         }
+        for expense in kept {
+            if expense.paidAt == nil { expense.paidAt = expense.date }
+            expense.insurancePolicy = nil
+        }
+        premiumExpenses.removeAll()
         context.delete(self)
     }
 }

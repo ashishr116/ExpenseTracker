@@ -12,6 +12,7 @@ struct EMIsView: View {
     @Query(sort: \EMI.endMonth) private var emis: [EMI]
     @State private var isAddingEMI = false
     @State private var editingEMI: EMI?
+    @State private var deletingEMI: EMI?
     @State private var reminders = NotificationStatus()
 
     private var activeEMIs: [EMI] { emis.filter(\.isActive) }
@@ -70,6 +71,23 @@ struct EMIsView: View {
         .sheet(item: $editingEMI) { emi in
             EMIFormView(emi: emi)
         }
+        .confirmationDialog(
+            "Delete \(deletingEMI?.name ?? "EMI")?",
+            isPresented: Binding(get: { deletingEMI != nil }, set: { if !$0 { deletingEMI = nil } }),
+            titleVisibility: .visible,
+            presenting: deletingEMI
+        ) { emi in
+            Button("Delete EMI", role: .destructive) {
+                emi.delete(from: modelContext)
+                deletingEMI = nil
+            }
+        } message: { emi in
+            let kept = emi.installmentsKeptOnDelete()
+            let future = emi.installments.count - kept.count
+            Text(kept.isEmpty
+                 ? "Removes its \(future) instalment\(future == 1 ? "" : "s") still to come."
+                 : "Keeps the \(kept.count) instalment\(kept.count == 1 ? "" : "s") already paid (\(kept.totalAmount.formatted(.rupees))) as past expenses, so your balances and past months don't change. Removes the \(future) still to come.")
+        }
     }
 
     private func emiRow(_ emi: EMI) -> some View {
@@ -89,12 +107,11 @@ struct EMIsView: View {
             }
         }
         .swipeActions {
-            Button("Delete", systemImage: "trash", role: .destructive) {
-                for expense in emi.installments {
-                    modelContext.delete(expense)
-                }
-                modelContext.delete(emi)
+            // Asks first: a full swipe would otherwise delete straight away.
+            Button("Delete", systemImage: "trash") {
+                deletingEMI = emi
             }
+            .tint(.red)
         }
     }
 }
