@@ -9,7 +9,7 @@
 - **`BudgetLimitFormView.swift`**: set, change or remove a category's monthly limit.
 
 ## Entry forms
-- **`ExpenseFormView.swift`**: add or edit an expense, with category (and a custom name under Other), payment type and saved-card chips.
+- **`ExpenseFormView.swift`**: add or edit an expense, with category (and a custom name under Other), payment type and saved-card chips. A switch at the top turns it into a Refund / Cashback (also in the + menu): money back to a card, bank or cash, saved as a negative amount so it lowers that category's spending and the balance.
 - **`IncomeFormView.swift`**: add or edit income.
 - **`LoanFormView.swift`**: lend money to a friend by cash, your card (one-off or EMI), or a personal loan. Instalments, monthly reminder, already-paid months, and sending by message or WhatsApp.
 - **`SplitBillFormView.swift`**: split a bill from the + menu. Enter the total, who paid (you or a friend), how it was paid, and who shares it, equally or with custom amounts. When you paid, your share is an expense and each friend's share becomes a loan with the note "Split: ...", from the card or bank you paid with. When a friend paid, your share is an expense plus a debt in Borrowed ("I Owe Them"), or just an expense if you settled it now.

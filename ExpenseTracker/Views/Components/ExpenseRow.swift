@@ -28,9 +28,20 @@ struct ExpenseRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text(expense.amount, format: .rupees)
-                    .font(.body.weight(.semibold))
-                if expense.isPlanned {
+                if expense.isRefund {
+                    Text("+\((-expense.amount).formatted(.rupees))")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.green)
+                    Text("Refund")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.green)
+                } else {
+                    Text(expense.amount, format: .rupees)
+                        .font(.body.weight(.semibold))
+                }
+                if expense.isRefund {
+                    EmptyView()
+                } else if expense.isPlanned {
                     Text("Not paid yet")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.orange)

@@ -81,7 +81,7 @@ struct ContentView: View {
 
 /// Which add-entry sheet is currently presented from the + menu.
 private enum AddSheet: Identifiable {
-    case expense, income, loan, split
+    case expense, refund, income, loan, split
 
     var id: Self { self }
 }
@@ -99,6 +99,9 @@ private struct AddEntryToolbar: ViewModifier {
                     Menu {
                         Button("Expense", systemImage: "minus.circle") {
                             addSheet = .expense
+                        }
+                        Button("Refund / Cashback", systemImage: "arrow.uturn.backward.circle") {
+                            addSheet = .refund
                         }
                         Button("Income", systemImage: "plus.circle") {
                             addSheet = .income
@@ -118,6 +121,7 @@ private struct AddEntryToolbar: ViewModifier {
             .sheet(item: $addSheet) { sheet in
                 switch sheet {
                 case .expense: ExpenseFormView(defaultDate: defaultDate)
+                case .refund: ExpenseFormView(defaultDate: defaultDate, isRefund: true)
                 case .income: IncomeFormView(defaultDate: defaultDate)
                 case .loan: LoanFormView(defaultDate: defaultDate)
                 case .split: SplitBillFormView(defaultDate: defaultDate)

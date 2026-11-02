@@ -102,7 +102,8 @@ struct MonthlyRecap {
         }
         daysCounted = counted
         dailyAverage = counted > 0 ? spent / Decimal(counted) : 0
-        let daysWithSpending = Set(paid.map { calendar.component(.day, from: $0.date) }.filter { $0 <= counted })
+        // A day with only a refund isn't a spending day.
+        let daysWithSpending = Set(paid.filter { $0.amount > 0 }.map { calendar.component(.day, from: $0.date) }.filter { $0 <= counted })
         noSpendDays = max(0, counted - daysWithSpending.count)
     }
 

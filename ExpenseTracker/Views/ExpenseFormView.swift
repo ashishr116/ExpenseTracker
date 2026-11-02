@@ -26,15 +26,23 @@ struct ExpenseFormView: View {
     @State private var date: Date
     /// A credit card saved for the first time by this expense, while its bill day is being asked.
     @State private var cardAskingBillDay: PaymentCard?
+    /// Money coming back: a refund or cashback. Saved as a negative amount.
+    @State private var isRefund: Bool
 
     /// - Parameter defaultDate: Date used for new entries from a selected day or month.
     /// - Parameters:
     ///   - prefillTitle: Description to start a new expense with, for example the name of a goal just bought.
     ///   - prefillAmount: Amount to start a new expense with.
-    init(expense: Expense? = nil, defaultDate: Date = .now, prefillTitle: String = "", prefillAmount: Decimal? = nil) {
+    ///   - isRefund: Start a new entry as a refund or cashback.
+    init(
+        expense: Expense? = nil, defaultDate: Date = .now, prefillTitle: String = "", prefillAmount: Decimal? = nil,
+        isRefund: Bool = false
+    ) {
         self.expense = expense
         _title = State(initialValue: expense?.title ?? prefillTitle)
-        _amount = State(initialValue: expense?.amount ?? prefillAmount)
+        // A refund is stored as a negative amount, and entered as a positive one.
+        _amount = State(initialValue: expense.map { abs($0.amount) } ?? prefillAmount)
+        _isRefund = State(initialValue: expense?.isRefund ?? isRefund)
         _accountType = State(initialValue: expense?.accountType ?? .creditCard)
         _bankName = State(initialValue: expense?.bankName ?? "")
         _cardLastFour = State(initialValue: expense?.cardLastFour ?? "")
@@ -110,11 +118,23 @@ struct ExpenseFormView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Expense") {
-                    TextField("Amount", value: $amount, format: .rupees)
+                // Planned EMIs and premiums are always expenses.
+                if expense?.emi == nil && expense?.insurancePolicy == nil {
+                    Section {
+                        Picker("Type", selection: $isRefund.animation()) {
+                            Text("Expense").tag(false)
+                            Text("Refund / Cashback").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .listRowBackground(Color.clear)
+                    }
+                }
+
+                Section {
+                    TextField(isRefund ? "Amount Back" : "Amount", value: $amount, format: .rupees)
                         .keyboardType(.decimalPad)
                         .font(.title2.weight(.semibold))
-                    TextField("Description (optional)", text: $title)
+                    TextField(isRefund ? "What for (e.g. Amazon return, cashback)" : "Description (optional)", text: $title)
                     Picker("Category", selection: $category.animation()) {
                         ForEach(ExpenseCategory.allCases) { category in
                             Label(category.rawValue, systemImage: category.systemImage)
@@ -138,9 +158,15 @@ struct ExpenseFormView: View {
                             }
                         }
                     }
+                } header: {
+                    Text(isRefund ? "Refund / Cashback" : "Expense")
+                } footer: {
+                    if isRefund {
+                        Text("Pick the category of what was refunded: it lowers that category's spending this month. Use Other for cashback. The money goes back where it was paid: a card owes less, or a bank or cash goes up.")
+                    }
                 }
 
-                Section("Payment") {
+                Section(isRefund ? "Credited To" : "Payment") {
                     Picker("Account Type", selection: $accountType.animation()) {
                         ForEach(AccountType.allCases) { type in
                             Label(type.rawValue, systemImage: type.systemImage)
@@ -207,14 +233,16 @@ struct ExpenseFormView: View {
 
                 if let expense {
                     Section {
-                        Button("Delete Expense", role: .destructive) {
+                        Button(isRefund ? "Delete Refund" : "Delete Expense", role: .destructive) {
                             modelContext.delete(expense)
                             dismiss()
                         }
                     }
                 }
             }
-            .navigationTitle(expense == nil ? "New Expense" : "Edit Expense")
+            .navigationTitle(isRefund
+                             ? (expense == nil ? "New Refund" : "Edit Refund")
+                             : (expense == nil ? "New Expense" : "Edit Expense"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -296,9 +324,12 @@ struct ExpenseFormView: View {
             CardSync.sync(in: modelContext)
         }
 
+        // Money back is saved as a negative amount, so every total and balance takes it off.
+        let signed = isRefund ? -amount : amount
+
         if let expense {
             expense.title = trimmedTitle
-            expense.amount = amount
+            expense.amount = signed
             expense.accountType = accountType
             expense.bankName = trimmedBank
             expense.cardLastFour = card
@@ -308,7 +339,7 @@ struct ExpenseFormView: View {
         } else {
             let newExpense = Expense(
                 title: trimmedTitle,
-                amount: amount,
+                amount: signed,
                 accountType: accountType,
                 bankName: trimmedBank,
                 cardLastFour: card,

@@ -5,7 +5,7 @@ SwiftData records saved on the device. Money is stored as whole paise and read b
 ## `Expense.swift`
 - `AccountType`: how something was paid (cash, credit card, debit card, UPI).
 - `ExpenseCategory`: the built-in categories, each with an icon and a fixed/variable flag.
-- `Expense`: one expense. Links to the EMI or insurance policy that created it, if any. `paidAt` records when an EMI or premium was actually paid, and an unpaid one is "planned" and not counted as spending. Also holds an optional custom category name.
+- `Expense`: one expense. Links to the EMI or insurance policy that created it, if any. `paidAt` records when an EMI or premium was actually paid, and an unpaid one is "planned" and not counted as spending. Also holds an optional custom category name. A refund or cashback is an expense with a negative amount (`isRefund`), so totals and balances take it off without special handling.
 
 ## `Income.swift`
 `Income` and `IncomeSource`: money received, such as salary, with the bank it arrived in.

@@ -12,8 +12,9 @@ private extension Decimal {
 }
 
 /// Share of `part` in `whole` as a fraction, 0 when there is nothing to divide.
+/// Never below 0: a category with more refunded than spent counts as nothing spent.
 private func share(_ part: Decimal, of whole: Decimal) -> Double {
-    whole > 0 ? part.asDouble / whole.asDouble : 0
+    whole > 0 ? max(0, part.asDouble / whole.asDouble) : 0
 }
 
 // MARK: - Fixed and variable
@@ -366,6 +367,8 @@ struct BudgetCategoryChartView: View {
         let spent = monthExpenses.filter { !$0.isPlanned }
         let sorted = Dictionary(grouping: spent, by: \.category)
             .map { (name: $0.key.rawValue, total: $0.value.totalAmount) }
+            // A category with more refunded than spent this month has nothing to draw.
+            .filter { $0.total > 0 }
             .sorted { $0.total > $1.total }
 
         var result = sorted.prefix(Self.visibleSlices).enumerated().map {

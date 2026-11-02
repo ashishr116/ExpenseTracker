@@ -159,6 +159,10 @@ final class Expense {
         amountPaise = Money.paise(from: Money.amount(fromLegacy: legacyAmount))
     }
 
+    /// Money back for a purchase, or cashback. Stored as a negative amount, so it lowers the category's spending,
+    /// the month's totals and what a card owes (or raises a bank) without any special handling.
+    var isRefund: Bool { amountPaise < 0 }
+
     /// An EMI instalment or insurance premium that hasn't been recorded as paid yet.
     /// It is a commitment, not money spent, so spending totals leave it out.
     var isPlanned: Bool {
