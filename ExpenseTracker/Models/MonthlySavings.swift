@@ -111,8 +111,12 @@ enum SavingsSweep {
 
     // MARK: Leftover
 
-    /// What is left of a month: income, minus everything spent, minus EMIs and premiums still unpaid,
-    /// minus money lent, plus cash loans repaid. This matches "Remaining Budget" in the Budget Plan.
+    /// The cash really left from a month, the same figure as Cash Left in Monthly and Budget.
+    ///
+    /// Credit card purchases count when the card bill is paid, not when you buy, because that is when the money
+    /// leaves your bank. So it is income, minus spending in cash, UPI and debit card, minus card bills paid,
+    /// minus cash lent, plus cash loans repaid (and card shares friends paid you), plus money borrowed, minus
+    /// payments back to friends, minus money put into investments (plus any taken out).
     static func leftover(for month: Date, in context: ModelContext) -> Decimal {
         let range = Calendar.current.monthRange(containing: month)
         let start = range.lowerBound
@@ -130,22 +134,26 @@ enum SavingsSweep {
         let repayments = (try? context.fetch(FetchDescriptor<LoanRepayment>(
             predicate: #Predicate { $0.date >= start && $0.date < end }
         ))) ?? []
-        let cashRepaid = repayments.filter(\.isCashInflow).totalAmount
-        // Money borrowed from friends comes in, and paying it back goes out, as in the Budget's remaining figure.
         let borrowed = ((try? context.fetch(FetchDescriptor<Borrowing>(
             predicate: #Predicate { $0.date >= start && $0.date < end }
         ))) ?? []).reduce(Decimal(0)) { $0 + $1.amount }
         let paidBack = ((try? context.fetch(FetchDescriptor<BorrowingPayment>(
             predicate: #Predicate { $0.date >= start && $0.date < end }
         ))) ?? []).totalAmount
-
-        // Money put into investments has already left; money taken out came back.
-        let invested = ((try? context.fetch(FetchDescriptor<Transfer>(
+        let transfers = (try? context.fetch(FetchDescriptor<Transfer>(
             predicate: #Predicate { $0.date >= start && $0.date < end }
-        ))) ?? []).investedNet
+        ))) ?? []
 
-        return incomes.totalAmount - expenses.totalAmount - lent.filter { $0.method == .cash }.totalAmount
-            + cashRepaid + borrowed - paidBack - invested
+        return MonthCashView(
+            income: incomes.totalAmount,
+            expenses: expenses,
+            cardPayments: transfers,
+            cashLent: lent.filter { $0.method == .cash }.totalAmount,
+            cashRepaid: repayments.filter { $0.isCashInflow || $0.isCardShareReceived }.totalAmount,
+            borrowed: borrowed,
+            paidBack: paidBack,
+            now: end
+        ).cashLeft
     }
 
     // MARK: Sweeping
